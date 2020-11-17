@@ -32,6 +32,8 @@ class Game:
         self.last_image = None
         self.Cooldown = 0
         self.maxCooldown = 200
+
+        self.currentCellContents = []
     
     def triggerInput(self, triggers):
         if len(triggers) == 0: return
@@ -88,6 +90,7 @@ class Game:
             
             # Player movement
             if self.map.moveEntity(self.player, self.direction):
+                self.currentCellContents = self.map.cells[self.player.position[0]][self.player.position[1]].contents
                 self.player_moves += 1
                 self.graphics_updates = True
                 # Player moved successfully, entity target check for player
@@ -237,21 +240,44 @@ class Game:
                 pass # TODO: Draw picked up items
             cursor += 2*self.sprites.cellSize[1]
 
-        # Bottom panel BG
-        width = 10
-        height = 3
+        # Bottom panel prep
+        revealed = False
+        item_list = []
+        trap_list = []
+        for content in self.currentCellContents:
+            if content.type == "Trap":
+                revealed = True
+                trap_list.append(content.current)
+                print("Trapped!")
+            elif content.type == "Item":
+                revealed = True
+                item_list.append(content.index) # Add item to the list
 
-        offset_x = self.size[0]/2 - width*self.sprites.cellSize[1]/2
-        offset_y = self.size[1] - ((3 + height)*self.sprites.cellSize[0]) 
+        if revealed:
+            # Bottom panel BG
+            width = 10
+            height = 3
 
-        TL = (self.sprites.cellSize[0] + offset_x,(self.sprites.cellSize[1] + offset_y))
-        w = width*self.sprites.cellSize[0]
-        h = height*self.sprites.cellSize[1]
-        for x in range(1, width + 1):
-            for y in range(1, height + 1):
-                pos = (x*self.sprites.cellSize[0] + offset_x,(y*self.sprites.cellSize[1] + offset_y))
-                gg.blit(panelBG, pos)
-        # TODO Add various messages and only draw this if one is available (passed through the 'options' param)
+            offset_x = self.size[0]/2 - width*self.sprites.cellSize[1]/2
+            offset_y = self.size[1] - ((3 + height)*self.sprites.cellSize[0]) 
+
+            CENTER = (self.size[0]/2, self.size[1] - 3*self.sprites.cellSize[0])
+            w = width*self.sprites.cellSize[0]
+            h = height*self.sprites.cellSize[1]
+            for x in range(1, width + 1):
+                for y in range(1, height + 1):
+                    pos = (x*self.sprites.cellSize[0] + offset_x,(y*self.sprites.cellSize[1] + offset_y))
+                    gg.blit(panelBG, pos)
+           
+            gi.blit(self.sprites.getImage(5, self.player.armor), (TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor))
+            # Bottom panel FG
+            # TODO Add various messages and only draw this if one is available (passed through the 'options' param)
+            if len(trap_list) > 0:
+                # TODO: Trap first
+            elif len(item_list) > 0:
+                for i in len(item_list):
+                    pass # TODO: Draw items to be picked up
+                # TODO: Okay you can have your items, if you must.
 
 
 
