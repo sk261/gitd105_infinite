@@ -1,10 +1,19 @@
 import random
 random.seed()
+import entity
+
+# For debugging
+import math
 
 class Cell:
     def __init__(self, isWall):
         self.wall = isWall
         self.contents = []
+        self.revealed = False
+        self.floortype = 0
+        self.walltype = 0
+        self.exit = False
+        self.decor = []
 
 class _Cell:
     def __init__(self):
@@ -71,6 +80,9 @@ class Map:
                 newcell.contents.append(target)
                 target.position = [nx, ny]
                 return True
+
+    def revealCells(self, position):
+        pass
 
     def _getCellWallMap(self):
         ret = []
@@ -174,6 +186,7 @@ class Map:
         pq[0] = [[start]]
         found = False
         visited = [start]
+        error_handling = ""
         while not found and len(pq) > 0:
             cpi = sorted(pq)[0]
             current_path = pq[cpi][0]
@@ -194,158 +207,11 @@ class Map:
                         if not cpi + 1 in pq:
                             pq[cpi + 1] = []
                         pq[cpi+1].append(new_path)
+            if len(pq) == 0:
+                error_handling = current_path
 
         print("Error during pathfinding")
         return False
-
-    """                  
-              # Removed because using different algorithm  
-
-    def pathToPoint(self, start, end, lastD = None):
-        last_node = None
-        pq = {}
-        current_node = None
-        remove_first = False
-
-        for n in self.nodes:
-            pos = self.nodes[n]
-            if start == pos:
-                current_node = n
-                remove_first = True
-                pq[0] = [[n]]
-            if end == pos:
-                last_node = n
-        if last_node is None:
-            last_node = self._find_connector_by_point(end)
-        if current_node is None:
-            current_node = self._find_connector_by_point(end)
-
-        if last_node is current_node:
-            if start[0] < end[0]:
-                return ["E"]
-            elif start[0] > end[0]:
-                return ["W"]
-            elif start[1] < end[1]:
-                return ["S"]
-            else:
-                return ["N"]
-        else:
-            if not last_node in self.nodes:
-                last_node = self._find_connector_by_point(end)
-            if not current_node in self.nodes:
-                d, i = self._dir_to_closest_node(start, lastD)
-                pq[0] = [[d, i]]
-
-        end = last_node
-        found = False
-
-        visited = [pq[0][-1]]
-        while not found and len(pq) > 0:
-            cpi = sorted(pq)[0]
-            current_path = pq[cpi][0]
-            del pq[cpi][0]
-            if len(pq[cpi]) == 0:
-                del pq[cpi]
-
-            for connID in self.connections:
-                connector = self.connections[connID]
-                # Format: connector = [node index, direction, path value, node index ending]
-                if connector[0] == current_path[-1]:
-                    if connector[3] == end:
-                        found = True
-                        current_path.append(connector[1])
-                        pq = current_path
-                    else:
-                        if not connector[3] in visited:
-                            if not cpi + connector[2] in pq:
-                                pq[cpi + connector[2]] = []
-                            visited.append(connector[3])
-                            pq[cpi + connector[2]].append(current_path + [connector[1], connector[3]])
-
-        if len(pq) == 0:
-            print("Error during pathfinding")
-            return False
-        else:
-            if remove_first:
-                return pq[1:]
-            else:
-                return pq
-
-    def _find_connector_by_point(self, point):
-        arr = list(self.DX.keys())
-        nodes = []
-        lastDirections = []
-        for d in arr:
-            if not self._is_wall(point[0], point[1], d):
-                x = point[0] + self.DX[d]
-                y = point[1] + self.DY[d]
-                lastD = d
-                currentNode = self._get_node(x, y)
-                while currentNode == -1:
-                    _arr = list(self.DX.keys())
-                    _arr.remove(self.OPPOSITE[lastD])
-                    for _d in _arr:
-                        if not self._is_wall(x, y, _d):
-                            x += self.DX[_d]
-                            y += self.DY[_d]
-                            currentNode = self._get_node(x, y)
-                            lastD = _d
-                            break
-                nodes.append(currentNode)
-                lastDirections.append(self.OPPOSITE[_d])
-        
-        ret = []
-        for i in self.connections:
-            # connector = [node index, direction, path value, node index ending]
-            if self.connections[i][0] in nodes and self.connections[i][3] in nodes:
-                for n in range(len(nodes)):
-                    if self.connections[i][0] == nodes[n]:
-                        if lastDirections[n] == self.connections[i][1]:
-                            return i
-
-    def _get_node(self, x, y = None):
-        p = [x, y]
-        if y is None:
-            p = x
-        for i in self.nodes:
-            if self.nodes[i] == p:
-                return i
-        return -1
-    
-    # Returns the direction and the node
-    def _dir_to_closest_node(self, start, lastD = None):
-        arr = list(self.DX.keys())
-        ret = {}
-        if lastD in arr:
-            arr.remove(self.OPPOSITE[lastD])
-        for d in arr:
-            pos = [start[0], start[1]]
-            if not self._is_wall(pos[0], pos[1], d):
-                pos[0] += self.DX[d]
-                pos[1] += self.DY[d]
-                r = self._follow_path(pos, d, 1)
-                ret[d] = [r[0], r[1]]
-        closest_dir = list(ret.keys())[0]
-        for d in ret:
-            if ret[d][0] < ret[closest_dir][0]:
-                closest_dir = d
-        return closest_dir, ret[closest_dir][1]
-
-    
-    def _follow_path(self, start, lastD, count):
-        for i in self.nodes:
-            if start == self.nodes[i]:
-                return count, i
-        arr = list(self.DX.keys())
-        if lastD in arr:
-            arr.remove(self.OPPOSITE[lastD])
-        for d in arr:
-            pos = [start[0], start[1]]
-            if not self._is_wall(pos[0], pos[1], d):
-                pos[0] += self.DX[d]
-                pos[1] += self.DY[d]
-                return self._follow_path(pos, d, count + 1)
-    """                    
 
     def _make_nodes(self):
         self.nodes = {}
@@ -367,40 +233,7 @@ class Map:
                         if not [x, y] in self.rooms:
                             self.nodes[counter] = [x, y]
                             counter += 1
-        """
-        for n in self.nodes:
-            node = self.nodes[n]
-            # Check all directions
-            paths = {}
-            for d in self.DX:
-                paths[d] = not self._is_wall(node[0] + self.DX[d], node[1] + self.DY[d])
-            for d in paths:
-                if paths[d]:
-                    self.connections[counter] = [n, d, 1]
-                    self._make_connection(self.connections[counter], [node[0] + self.DX[d], node[1] + self.DY[d]], d)
-                    counter += 1
-        """
-
-    """
-    def _make_connection(self, connector, point, lastD):
-        visited = []
-        while True:
-            for n in self.nodes:
-                if self.nodes[n] == point:
-                    connector.append(n)
-                    return True
-            arr = list(self.DX.keys())
-            arr.remove(self.OPPOSITE[lastD])
-            for d in arr:
-                if not self._is_wall(point[0], point[1], d):
-                    connector[2] += 1
-                    point[0] += self.DX[d]
-                    point[1] += self.DY[d]
-                    lastD = d
-                    break
-        
-            
-    """
+  
     def _is_blocked(self, x, y, d = None):
         _x = x
         _y = y
@@ -470,11 +303,79 @@ class Map:
                     if walls == 0 and self.cells[x][y].wall: #Rooms
                         self.rooms.append([x, y])
                         self.cells[x][y].wall = False
+                        """
                     elif walls == 3 and not self.cells[x][y].wall: #Dead ends, rooms for now.
                         self.rooms.append([x, y])
+                        """
 
         self._make_nodes()
+        
+        
+        
+        # Special walls and floors, and items
+        for x in range(len(self.cells)):
+            for y in range(len(self.cells[x])):
+                cell = self.cells[x][y]
+                if cell.wall:
+                    potential = 0
+                    N, S, E, W = [self._is_wall(x, y, d) for d in ["N", "S", "E", "W"]]
+                    if N + S + E + W == 4:
+                        continue
+                    elif N + S + E + W == 1:
+                        #Only one adjacent wall
+                        if N or E or W:
+                            potential = random.choice([2, 3, 4, 6])
+                    elif N + S + E + W == 2:
+                        if E + W == 2:
+                            # Straight horizontal
+                            potential = random.choice([3, 5])
+                        elif N + S == 2:
+                            # Straight vertical
+                            potential = random.choice([2, 4, 6])
+                        else:
+                            # Corner
+                            potential = random.choice([2, 4, 6])
+                    elif N + S + E + W == 3:
+                        potential = random.choice([2,4,6])
+                    if random.randrange(8) == 0:
+                        cell.walltype = potential
+                else:
+                    # Walls
+                    if random.randrange(5) == 0:
+                        self.cells[x][y].floortype = random.choice([2,3,5,6,7,8])
+                    # Place item
+                    if random.randrange(50) == 0:
+                        item = entity.Item(random.choice([0,1,5,6,7,8,9,10,11]))
+                        item.position = [x,y]
+                        self.addEntity(item)
+                    elif random.randrange(50) == 0:
+                        # Traps
+                        trap = entity.Trap(random.choice(list(entity.TRAPS.keys())))
+                        trap.position = [x, y]
+                        self.addEntity(trap)
 
+
+        # Make carpetted rooms
+        for room in self.rooms:
+            if random.randrange(3) == 0:
+                self.cells[room[0]][room[1]+1].floortype = 9
+                self.cells[room[0]+1][room[1]+1].floortype = 9.1
+                self.cells[room[0]+1][room[1]].floortype = 9.2
+                self.cells[room[0]][room[1]].floortype = 9.3
+        
+        # Decor / Blood
+
+
+        # Exit
+        exit_spots = []
+        for x in range(len(self.cells)):
+            y = len(self.cells[x]) - 1
+            N, S, E, W = [self._is_wall(x, y, d) for d in ["N", "S", "E", "W"]]
+            if not S:
+                exit_spots.append(x)
+        exit_spot = random.choice(exit_spots)
+
+        self.cells[exit_spot][len(self.cells[exit_spot]) - 1].exit = True
 
 
 

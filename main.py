@@ -8,6 +8,7 @@ from pygame import mixer, time
 
 WINDOW_SIZE = [800, 600]
 
+
 # Intialize the pygame
 pygame.init()
 
@@ -23,10 +24,10 @@ clock = pygame.time.Clock()
 
 # Caption and Icon
 pygame.display.set_caption("Endless Escape")
-#icon = resources.iconImg
-#pygame.display.set_icon(icon)
+sprites = resources.SpriteSheet()
+pygame.display.set_icon(sprites.getImage(3, 0))
 
-session = game.Game()
+session = game.Game(sprites)
 
 # Game Loop
 running = True

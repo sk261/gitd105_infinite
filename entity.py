@@ -7,6 +7,7 @@ class Entity:
         self.blocking = False
         self.moving = False
         self.lastD = ""
+        self.health = 0
     
     def clone(self):
         return copy.deepcopy(self)
@@ -16,7 +17,11 @@ class Player(Entity):
         super(Player, self).__init__()
         self.type = "Player"
         self.moving = False
-        self.health = 5
+        self.health = 6
+        self.max_health = 6
+        self.armor = 5
+        self.armor_quality = 3
+        self.armor_max_quality = 5
         self.inventory = []
         self.max_inventory = 3
         self.money = 0
@@ -64,10 +69,46 @@ class Monster(Entity):
     
 
 class Item(Entity):
-    def __init__(self):
+    def __init__(self, index):
         super(Item, self).__init__()
         self.type = "Item"
+        self.index = index
+        self.quality = 0
+
+class Decor(Entity): #Blood
+    def __init__(self, index):
+        super(Decor, self).__init__()
+        self.type = "Decor"
+        self.index = index
+
+
+class Trap(Entity):
+    def __init__(self, trap):
+        super(Trap, self).__init__()
+        self.type = "Trap"
+        self.trap = trap
+        self.damage = TRAPS[trap][2]
+        self.current = TRAPS[trap][0]
+        self.post_image = TRAPS[trap][1]
+        self.sprung = False
     
+    def Spring(self, entity):
+        if entity.type == "Player":
+            entity.health -= damage
+            self.current = self.post_Image
+            if self.trap == "Spikes":
+                self.post_image = None
+                self.damage = 0
+            return self.trap == "Portal"
+        return False
+
+
+
+TRAPS = {
+    "Spikes":   [ [6, 5],   [6, 6], 1, ],
+    "Hole":     [ [4, 1],   None,   2 ],
+    "Portal":   [ [4, 2],   None,   0]
+}
 DEFAULT_MONSTER = Monster()
 DEFAULT_MONSTER.health = 5
 DEFAULT_MONSTER.damage = 1

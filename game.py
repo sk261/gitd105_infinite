@@ -1,15 +1,15 @@
 import map
 import pygame
 import entity
-import random
 import math
+import random
 random.seed()
 import time as _time
 time = lambda: int(round(_time.time() * 1000))
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, spritesheet):
         self.player = entity.Player()
         self.direction = ""
         self.player_moves = 0
@@ -18,14 +18,17 @@ class Game:
         self.map = map.Map()
         self.map.generateMap([10,10])
         self.player.position = self.map.coordToGraphic(10,10)
-        # self.map.addEntity(self.player)
+        self.map.addEntity(self.player)
         self.map.generateMonsters(10, entity.DEFAULT_MONSTER)
         self.level = 0
+
+        self.sprites = spritesheet
 
         self.currentTriggers = []
         self.graphics_updates = True
         self.bg_image = None
         self.fg_image = None
+        self.gg_image = None
         self.last_image = None
         self.Cooldown = 0
         self.maxCooldown = 200
@@ -81,9 +84,8 @@ class Game:
 
         self.handleControls()
         if self.direction != "":
-            playerTurn = True
             self.graphics_updates = True
-            """
+            
             # Player movement
             if self.map.moveEntity(self.player, self.direction):
                 self.player_moves += 1
@@ -100,7 +102,7 @@ class Game:
                 self.player_moves = 0
                 playerTurn = True
             self.direction = ""
-            """
+            
 
                 
 
@@ -127,26 +129,6 @@ class Game:
                         # entity.path = self.map.pathToPoint(entity.position, entity.target, entity.lastD)
                         entity.path = self.map.pathToPoint(entity.position, entity.target)
 
-
-                    dirs = list(self.map.DX.keys())
-                    random.shuffle(dirs)
-                    """ # Removed for newer version
-                    if entity.path[0] in dirs:
-                        dirs.remove(entity.path[0])
-                        dirs = [entity.path[0]] + dirs
-                    if entity.lastD != "":
-                        dirs.remove(self.map.OPPOSITE[entity.lastD])
-                        dirs.append(self.map.OPPOSITE[entity.lastD])
-                    for d in dirs:
-                        if self.map.moveEntity(entity, d):
-                            if len(entity.path) > 1:
-                                if self.map.nodes[entity.path[1]] == entity.position:
-                                    entity.path.pop(0)
-                                    entity.path.pop(0)
-                            self.graphics_updates = True
-                            entity.lastD = d
-                            break
-                    """
                     # Newer version
                     acted = False
                     while not acted:
@@ -185,39 +167,154 @@ class Game:
     def draw(self):
         if self.graphics_updates:
             self.graphics_updates = False
-            self.bg_image = self.getBackgroundImage(0,0)
-            self.fg_image = self.getForegroundImage(0,0)
+            self.bg_image = self.getBackgroundImage(self.player.position)
+            self.fg_image = self.getForegroundImage(self.player.position)
+            self.gg_image = self.getGUIImage(None)
 
         ret = pygame.Surface((self.size[0], self.size[1]))
         ret.blit(self.bg_image, (0, 0))
         ret.blit(self.fg_image, (0, 0))
+        ret.blit(self.gg_image, (0, 0))
         
         return ret
 
-    def getForegroundImage(self, x, y):
+    def getGUIImage(self, options):
+        gg = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
+        gfinal = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
+        gi = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
+        gg.set_alpha(200)
+        panelBG = self.sprites.getImage(1, 1)
+
+        # Left panel BG
+        width = 5
+        height = 10
+
+        offset_y = self.size[1]/2 - height*self.sprites.cellSize[1]/2
+        TL = (self.sprites.cellSize[0],(self.sprites.cellSize[1] + offset_y))
+        w = width*self.sprites.cellSize[0]
+        h = height*self.sprites.cellSize[1]
+        for x in range(1, width + 1):
+            for y in range(1, height + 1):
+                pos = (x*self.sprites.cellSize[0],(y*self.sprites.cellSize[1] + offset_y))
+                gg.blit(panelBG, pos)
+        
+        # Left panel FG
+        # Character
+        cursor = TL[1] + self.sprites.cellSize[1]/2
+        gi.blit(self.sprites.getImage(3, 0), (TL[0] + w/2 - self.sprites.cellSize[0]/2, TL[1] + self.sprites.cellSize[1]/2))
+        # Hearts
+        cursor += self.sprites.cellSize[1]
+        full_hearts = int(self.player.health / 2)
+        halfHeart = (self.player.health % 2 == 0)
+        for n in range(3):
+            off = (n-1) + 1/2
+            i = 4
+            if n < full_hearts:
+                i = 2
+            elif n == full_hearts and halfHeart:
+                i = 3
+            gi.blit(self.sprites.getImage(5, i), (TL[0] + w/2 - off*self.sprites.cellSize[0], cursor))
+        # Current Armor
+        cursor += self.sprites.cellSize[1]
+        gi.blit(self.sprites.getImage(5, self.player.armor), (TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor))
+        cursor += self.sprites.cellSize[1]
+        pygame.draw.rect(
+            gi,
+            self.getPercentColour(self.player.armor_quality, self.player.armor_max_quality),
+            pygame.Rect(TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor, self.sprites.cellSize[0], 3))
+        # Boxes
+        cursor += 5
+        for item in range(self.player.max_inventory):
+            pygame.draw.rect(
+                gg,
+                (100, 100, 100),
+                pygame.Rect(TL[0] + w/10, cursor, 8*w/10, self.sprites.cellSize[1]*1.5))
+            pygame.draw.rect(
+                gg,
+                (150, 150, 150),
+                pygame.Rect(TL[0] + w/10 + 2, cursor + 2, 8*w/10 - 4, self.sprites.cellSize[1]*1.5 - 4))
+            if item < len(self.player.inventory):
+                pass # TODO: Draw picked up items
+            cursor += 2*self.sprites.cellSize[1]
+
+        # Bottom panel BG
+        width = 10
+        height = 3
+
+        offset_x = self.size[0]/2 - width*self.sprites.cellSize[1]/2
+        offset_y = self.size[1] - ((3 + height)*self.sprites.cellSize[0]) 
+
+        TL = (self.sprites.cellSize[0] + offset_x,(self.sprites.cellSize[1] + offset_y))
+        w = width*self.sprites.cellSize[0]
+        h = height*self.sprites.cellSize[1]
+        for x in range(1, width + 1):
+            for y in range(1, height + 1):
+                pos = (x*self.sprites.cellSize[0] + offset_x,(y*self.sprites.cellSize[1] + offset_y))
+                gg.blit(panelBG, pos)
+        # TODO Add various messages and only draw this if one is available (passed through the 'options' param)
+
+
+
+        gfinal.blit(gg, (0,0))
+        gfinal.blit(gi, (0,0))
+        return gfinal
+
+        
+        
+
+
+    def getForegroundImage(self, center):
         # Draw the entities
         fg = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
+
+        offset_x = self.size[0]/2-(center[0]*self.sprites.cellSize[0])
+        offset_y = self.size[1]/2-((len(self.map.cells[0])-center[1])*self.sprites.cellSize[1])
 
         arr = self.map.contents
         for entity in arr:
             x, y = entity.position
-            rgb = (255,0,0)
+            pos = (x*self.sprites.cellSize[0] + offset_x,(len(self.map.cells[0])-y)*self.sprites.cellSize[1] + offset_y)
             if entity.type == "Player":
-                rgb = (0,255,0)
-            pygame.draw.rect(fg, rgb, (x*5,(len(self.map.cells[0])-y)*5,5,5))    
+                fg.blit(self.sprites.getImage(3, 0), pos)
+            elif entity.type == "Monster":
+                fg.blit(self.sprites.getImage(2, 0), pos)
+            elif entity.type == "Trap":
+                if not entity.current is None:
+                    fg.blit(self.sprites.getImage(entity.current[0], entity.current[1]), pos)
+            elif entity.type == "Item":
+                fg.blit(self.sprites.getImage(4, 0), pos)
+            elif entity.type == "Decor":
+                pass
 
         return fg
 
-    def getBackgroundImage(self, x, y):
+    def getBackgroundImage(self, center):
         # Draw the map
         bg = pygame.Surface((self.size[0], self.size[1]))
         bg.fill((200,200,200))
 
+        offset_x = self.size[0]/2-(center[0]*self.sprites.cellSize[0])
+        offset_y = self.size[1]/2-((len(self.map.cells[0])-center[1])*self.sprites.cellSize[1])
+
         arr = self.map.cells
         for x in range(len(arr)):
             for y in range(len(arr[x])):
-                if arr[x][y].wall:
-                    pygame.draw.rect(bg, (0,0,0), (x*5,(len(arr[x])-y)*5,5,5))    
-                else:
-                    pygame.draw.rect(bg, (200,200,200), (x*5,(len(arr[x])-y)*5,5,5))    
+                pos = (x*self.sprites.cellSize[0] + offset_x,(len(arr[x])-y)*self.sprites.cellSize[1] + offset_y)
+                bg.blit(self.sprites.getImage(1, arr[x][y].floortype), pos)
+                if arr[x][y].exit:
+                    bg.blit(self.sprites.getImage(4, 3), pos)
+                elif arr[x][y].wall:
+                    bg.blit(self.sprites.getImage(0, arr[x][y].walltype), pos)
+
         return bg
+
+    def getPercentColour(self, current_v, max_v):
+        # Green = 100%
+        # Red <= 30%
+        r = 255*(max_v-current_v)/max_v
+        g = 255*current_v/max_v
+        m = max(r, g)
+        r = r / m * 255
+        g = g / m * 255
+        b = 0
+        return (r, g, b)
