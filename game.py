@@ -19,6 +19,7 @@ class Game:
         self.map.generateMap([10,10])
         self.player.position = self.map.coordToGraphic(10,10)
         self.map.addEntity(self.player)
+        self.map.revealCellsFromEntity(self.player)
         self.map.generateMonsters(10, entity.DEFAULT_MONSTER)
         self.level = 0
 
@@ -32,8 +33,10 @@ class Game:
         self.last_image = None
         self.Cooldown = 0
         self.maxCooldown = 200
+        self.waitForDialogue = False
 
         self.currentCellContents = []
+        self.DEBUGGING = False
     
     def triggerInput(self, triggers):
         if len(triggers) == 0: return
@@ -85,14 +88,22 @@ class Game:
         playerTurn = False
 
         self.handleControls()
-        if self.direction != "":
+        if self.direction != "" and not self.waitForDialogue:
             self.graphics_updates = True
             
             # Player movement
             if self.map.moveEntity(self.player, self.direction):
+                self.map.clearVisibility()
+                self.map.revealCellsFromEntity(self.player)
                 self.currentCellContents = self.map.cells[self.player.position[0]][self.player.position[1]].contents
                 self.player_moves += 1
                 self.graphics_updates = True
+                # Check for traps
+                for entity in self.currentCellContents:
+                    if entity.type == "Trap":
+                        self.waitForDialogue = entity.requires_dialogue
+                        if self.waitForDialogue:
+                            pass
                 # Player moved successfully, entity target check for player
                 for entity in self.map.contents:
                     if not entity.moving:
@@ -104,7 +115,8 @@ class Game:
             if self.player_moves >= self.player.speed:
                 self.player_moves = 0
                 playerTurn = True
-            self.direction = ""
+        
+        self.direction = ""
             
 
                 
@@ -273,9 +285,10 @@ class Game:
             # Bottom panel FG
             # TODO Add various messages and only draw this if one is available (passed through the 'options' param)
             if len(trap_list) > 0:
+                pass
                 # TODO: Trap first
             elif len(item_list) > 0:
-                for i in len(item_list):
+                for i in range(len(item_list)):
                     pass # TODO: Draw items to be picked up
                 # TODO: Okay you can have your items, if you must.
 
@@ -299,25 +312,27 @@ class Game:
         arr = self.map.contents
         for entity in arr:
             x, y = entity.position
-            pos = (x*self.sprites.cellSize[0] + offset_x,(len(self.map.cells[0])-y)*self.sprites.cellSize[1] + offset_y)
-            if entity.type == "Player":
-                fg.blit(self.sprites.getImage(3, 0), pos)
-            elif entity.type == "Monster":
-                fg.blit(self.sprites.getImage(2, 0), pos)
-            elif entity.type == "Trap":
-                if not entity.current is None:
-                    fg.blit(self.sprites.getImage(entity.current[0], entity.current[1]), pos)
-            elif entity.type == "Item":
-                fg.blit(self.sprites.getImage(4, 0), pos)
-            elif entity.type == "Decor":
-                pass
+            if self.map.cells[x][y].visible != 0 or self.DEBUGGING:
+                pos = (x*self.sprites.cellSize[0] + offset_x,(len(self.map.cells[0])-y)*self.sprites.cellSize[1] + offset_y)
+                if entity.type == "Player":
+                    fg.blit(self.sprites.getImage(3, 0), pos)
+                elif entity.type == "Monster":
+                    fg.blit(self.sprites.getImage(2, 0), pos)
+                elif entity.type == "Trap":
+                    if not entity.current is None:
+                        fg.blit(self.sprites.getImage(entity.current[0], entity.current[1]), pos)
+                elif entity.type == "Item":
+                    fg.blit(self.sprites.getImage(4, 0), pos)
+                elif entity.type == "Decor":
+                    pass
 
         return fg
 
     def getBackgroundImage(self, center):
+        
         # Draw the map
         bg = pygame.Surface((self.size[0], self.size[1]))
-        bg.fill((200,200,200))
+        bg.fill((0,0,0))
 
         offset_x = self.size[0]/2-(center[0]*self.sprites.cellSize[0])
         offset_y = self.size[1]/2-((len(self.map.cells[0])-center[1])*self.sprites.cellSize[1])
@@ -325,12 +340,19 @@ class Game:
         arr = self.map.cells
         for x in range(len(arr)):
             for y in range(len(arr[x])):
-                pos = (x*self.sprites.cellSize[0] + offset_x,(len(arr[x])-y)*self.sprites.cellSize[1] + offset_y)
-                bg.blit(self.sprites.getImage(1, arr[x][y].floortype), pos)
-                if arr[x][y].exit:
-                    bg.blit(self.sprites.getImage(4, 3), pos)
-                elif arr[x][y].wall:
-                    bg.blit(self.sprites.getImage(0, arr[x][y].walltype), pos)
+                if arr[x][y].revealed or self.DEBUGGING:
+                    pos = [x*self.sprites.cellSize[0] + offset_x,(len(arr[x])-y)*self.sprites.cellSize[1] + offset_y]
+                    bg.blit(self.sprites.getImage(1, arr[x][y].floortype), pos)
+                    if arr[x][y].exit:
+                        bg.blit(self.sprites.getImage(4, 3), pos)
+                    elif arr[x][y].wall:
+                        bg.blit(self.sprites.getImage(0, arr[x][y].walltype), pos)
+                    # Shadow
+                    shadow = pygame.Surface(self.sprites.cellSize, pygame.SRCALPHA)
+                    shadow.fill((0, 0, 0, 255 * (1 - max(.3, arr[x][y].visible))))
+                    bg.blit(shadow, pos)
+                    if self.DEBUGGING and arr[x][y].visible != 0:
+                        pygame.draw.rect(bg, (255,0,0), pos + self.sprites.cellSize, 1)
 
         return bg
 

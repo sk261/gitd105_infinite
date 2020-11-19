@@ -8,12 +8,18 @@ import math
 class Cell:
     def __init__(self, isWall):
         self.wall = isWall
+        self.blocksVision = isWall
         self.contents = []
         self.revealed = False
+        self.visible = 0
         self.floortype = 0
         self.walltype = 0
         self.exit = False
         self.decor = []
+
+    def setWallType(self, _id):
+        self.walltype = _id
+        self.blocksVision = not _id in [2, 4, 6]
 
 class _Cell:
     def __init__(self):
@@ -27,6 +33,8 @@ class Map:
         self.size = [20,20]
         self.contents = []
         self.rooms = []
+        self.hallway_size = 2
+        self.visibleCells = []
 
         self.nodes = {}
         self.connections = {}
@@ -45,7 +53,7 @@ class Map:
             return [len(self.cells), len(self.cells[0])][i]
 
     def coordToGraphic(self, x, y):
-        return [(2*x)+1, (2*y)+1]
+        return [((self.hallway_size+1)*x)+int((self.hallway_size+1)/2), ((self.hallway_size+1)*y)+int((self.hallway_size+1)/2)]
 
     def addEntity(self, entity):
         pos = entity.position
@@ -61,6 +69,172 @@ class Map:
             self.cells[pos[0]][pos[1]].contents.append(entity)
             return True
         return False
+    
+    def clearVisibility(self):
+        for cell in self.visibleCells:
+            cell.visible = 0
+        self.visibleCells = []
+
+    def getCellsFromEnttiy(self, entity, dist, d):
+        ret = []
+
+        pos = entity.position
+        y_mod = True if self.DY[d] != 0 else False
+        x_mod = self.DY[d] if self.DX[d] == 0 else self.DX[d]
+
+        slope_bounds = [-1, 1]
+        for r in range(1, dist+1):
+            # r is the x step
+
+            new_slopes = [el for el in slope_bounds]
+            for n in range(int((len(slope_bounds)+1)/2)):
+                # Get every pair of slopes.
+                _max = int(slope_bounds[2*n + 1] * r)
+                _min = int(slope_bounds[2*n] * r)
+                for _y in range(_min, _max+1):
+                    if y_mod:
+                        _cpY = pos[1] +  r*x_mod
+                        _cpX = pos[0] + _y
+                    else:
+                        _cpY = pos[1] + _y
+                        _cpX = pos[0] + r*x_mod
+
+                    if self.cellExists(_cpX, _cpY):
+                        ret.append([_cpX, _cpY])
+
+                    blocked = not self.cellExists(_cpX, _cpY) or self.cells[_cpX][_cpY].blocksVision
+                    if blocked:
+                        r_mod = -1 if _y < 0 else 1
+                        if _y == _max: #reduce max
+                            new_slopes[-1] = (_y-.5)/(r+(.5 * r_mod))
+                        elif _y == _min: #reduce min
+                            new_slopes[0] = (.5+_y)/(r+(-.5 * r_mod))
+                        else: # new pair
+                            new_slopes.insert(2*n+1, (.5+_y)/(r-.5)) # min
+                            new_slopes.insert(2*n+1,  (_y-.5)/(r+.5)) # max
+            slope_bounds = new_slopes
+            change = True
+            while change:
+                change = False
+                new_slopes = [el for el in slope_bounds]
+                # Slope checker:
+                for n in range(int((len(slope_bounds)+1)/2)):
+                    _max = slope_bounds[2*n + 1]
+                    _min = slope_bounds[2*n]
+                    if _min == _max: # delete both
+                        change = True
+                        new_slopes[2*n] = None
+                        new_slopes[2*n+1] = None
+                        break
+                    elif _min > _max and n > 0 and 2*n+2 < len(slope_bounds): #swap their places and delete surrounding ones
+                        change = True
+                        new_slopes[2*n], new_slopes[2*n+1] = new_slopes[2*n+1], new_slopes[2*n]
+                        new_slopes[2*n-1], new_slopes[2*n+2] = None, None
+                        break
+                    elif _min > _max and n == 0 and len(slope_bounds) > 2:
+                        change = True
+                        new_slopes[0] = max(new_slopes[0], new_slopes[2])
+                        new_slopes[1], new_slopes[2] = None, None
+                        break
+                    elif _min > _max and 2*n + 2 == len(slope_bounds) and len(slope_bounds) > 2:
+                        change = True
+                        new_slopes[-1] = min(new_slopes[-1], new_slopes[-3])
+                        new_slopes[-2], new_slopes[-3] = None, None
+                        break
+                    elif _min > _max:
+                        change = True
+                        new_slopes[2*n] = None
+                        new_slopes[2*n+1] = None
+                        break
+                slope_bounds = [el for el in new_slopes if not el is None]
+        return ret
+
+    def revealCellsFromEntity(self, entity, dist = 5):
+        pos = entity.position
+        cells = []
+        cells.append(pos)
+        for d in self.DX.keys():
+            cells = cells + self.getCellsFromEnttiy(entity, dist, d)
+        for cell in cells:
+            self.cells[cell[0]][cell[1]].revealed = True
+            self.cells[cell[0]][cell[1]].visible =  (math.dist((0, 0), (dist, dist)) - math.dist(cell, pos)) / math.dist((0, 0), (dist, dist))
+        """
+        self.cells[pos[0]][pos[1]].revealed = True
+        self.cells[pos[0]][pos[1]].visible = 1
+        self.visibleCells.append(self.cells[pos[0]][pos[1]])
+        for y_mod in [False, True]:
+            for x_mod in range(-1, 2, 2):
+                slope_bounds = [-1, 1]
+                for r in range(1, dist+1):
+                    # r is the x step
+
+                    new_slopes = [el for el in slope_bounds]
+                    for n in range(int((len(slope_bounds)+1)/2)):
+                        # Get every pair of slopes.
+                        _max = int(slope_bounds[2*n + 1] * r)
+                        _min = int(slope_bounds[2*n] * r)
+                        if _max <= _min:
+                            continue
+                        for _y in range(_min, _max+1):
+                            if y_mod:
+                                _cpY = pos[1] +  r*x_mod
+                                _cpX = pos[0] + _y
+                            else:
+                                _cpY = pos[1] + _y
+                                _cpX = pos[0] + r*x_mod
+
+                            if self.cellExists(_cpX, _cpY):
+                                self.cells[_cpX][_cpY].revealed = True
+                                self.cells[_cpX][_cpY].visible = (math.dist((0, 0), (dist, dist)) - math.dist((_cpX, _cpY), pos)) / math.dist((0, 0), (dist, dist))
+                                self.visibleCells.append(self.cells[_cpX][_cpY])
+
+                            blocked = not self.cellExists(_cpX, _cpY) or self.cells[_cpX][_cpY].blocksVision
+                            if blocked:
+                                r_mod = -1 if _y < 0 else 1
+                                if _y == _max: #reduce max
+                                    new_slopes[-1] = (_y-.5)/(r+(.5 * r_mod))
+                                elif _y == _min: #reduce min
+                                    new_slopes[0] = (.5+_y)/(r+(-.5 * r_mod))
+                                else: # new pair
+                                    new_slopes.insert(2*n+1, (.5+_y)/(r-.5)) # min
+                                    new_slopes.insert(2*n+1,  (_y-.5)/(r+.5)) # max
+                    slope_bounds = new_slopes
+                    change = True
+                    while change:
+                        change = False
+                        new_slopes = [el for el in slope_bounds]
+                        # Slope checker:
+                        for n in range(int((len(slope_bounds)+1)/2)):
+                            _max = slope_bounds[2*n + 1]
+                            _min = slope_bounds[2*n]
+                            if _min == _max: # delete both
+                                change = True
+                                new_slopes[2*n] = None
+                                new_slopes[2*n+1] = None
+                                break
+                            elif _min > _max and n > 0 and 2*n+2 < len(slope_bounds): #swap their places and delete surrounding ones
+                                change = True
+                                new_slopes[2*n], new_slopes[2*n+1] = new_slopes[2*n+1], new_slopes[2*n]
+                                new_slopes[2*n-1], new_slopes[2*n+2] = None, None
+                                break
+                            elif _min > _max and n == 0 and len(slope_bounds) > 2:
+                                change = True
+                                new_slopes[0] = max(new_slopes[0], new_slopes[2])
+                                new_slopes[1], new_slopes[2] = None, None
+                                break
+                            elif _min > _max and 2*n + 2 == len(slope_bounds) and len(slope_bounds) > 2:
+                                change = True
+                                new_slopes[-1] = min(new_slopes[-1], new_slopes[-3])
+                                new_slopes[-2], new_slopes[-3] = None, None
+                                break
+                            elif _min > _max:
+                                change = True
+                                new_slopes[2*n] = None
+                                new_slopes[2*n+1] = None
+                                break
+                        slope_bounds = [el for el in new_slopes if not el is None]
+        """
+
     
     def moveEntity(self, entity, d):
         for target in self.contents:
@@ -81,25 +255,26 @@ class Map:
                 target.position = [nx, ny]
                 return True
 
-    def revealCells(self, position):
-        pass
 
+    # Turns a wall chart into a cell map
     def _getCellWallMap(self):
+        cell_size = self.hallway_size
         ret = []
         for x in range(self.size[0]):
             tempL, tempM, tempR = [], [], []
             for y in range(self.size[1]):
-                
+
                 if y == 0:
                     if x == 0:
                         tempL.append(True)
                     tempM.append(self.cells[x][y].WALLS["S"])
                     tempR.append(True)
 
-                if x == 0:
-                    tempL.append(self.cells[x][y].WALLS["W"])
-                tempM.append(False)
-                tempR.append(self.cells[x][y].WALLS["E"])
+                for n in range(cell_size):
+                    if x == 0:
+                        tempL.append(self.cells[x][y].WALLS["W"])
+                    tempM.append(False)
+                    tempR.append(self.cells[x][y].WALLS["E"])
                 
                 if x == 0:
                     tempL.append(True)
@@ -108,10 +283,13 @@ class Map:
 
             if x == 0:
                 ret.append(tempL)
-            ret.append(tempM)
+            for n in range(cell_size):
+                ret.append(tempM)
             ret.append(tempR)
         return ret
         
+    def cellExists(self, x, y):
+        return x >= 0 and x < len(self.cells) and y >= 0 and y < len(self.cells[x])
 
     def getCellContent(self, x, y):
         if self.cells[x][y].wall:
@@ -134,10 +312,10 @@ class Map:
                 if not self.cells[pos[0]][pos[1]].wall:
                     return pos
 
-    def entitySeesEntity(self, looker, target, direction):
+    def entitySeesEntity(self, looker, target, lastD):
         arr = list(self.DX.keys())
-        if direction in self.DX:
-            arr = [direction]
+        if lastD in self.DX:
+            arr = [self.OPPOSITE[lastD]]
         for d in arr: 
             px, py = looker.position
             while not self.cells[px][py].wall:
@@ -196,7 +374,7 @@ class Map:
             if current_path[-1] == end:
                 return current_path
             for d in self.DX:
-                if not self._is_wall(current_path[-1][0], current_path[-1][1], d):
+                if self._is_walkable_NPC(current_path[-1][0], current_path[-1][1], d):
                     pos = [current_path[-1][0], current_path[-1][1]]
                     pos[0] += self.DX[d]
                     pos[1] += self.DY[d]
@@ -259,6 +437,16 @@ class Map:
             return True
         else:
             return self.cells[_x][_y].wall
+    
+    def _is_walkable_NPC(self, x, y, d):
+        if self._is_wall(x, y, d):
+            return False
+        _x = x + self.DX[d]
+        _y = y + self.DY[d]
+        for entity in self.cells[_x][_y].contents:
+            if entity.type == "Trap" or entity.type == "Item":
+                return False
+        return True
 
 
 
@@ -303,6 +491,7 @@ class Map:
                     if walls == 0 and self.cells[x][y].wall: #Rooms
                         self.rooms.append([x, y])
                         self.cells[x][y].wall = False
+                        self.cells[x][y].blocksVision = False
                         """
                     elif walls == 3 and not self.cells[x][y].wall: #Dead ends, rooms for now.
                         self.rooms.append([x, y])
@@ -338,7 +527,7 @@ class Map:
                     elif N + S + E + W == 3:
                         potential = random.choice([2,4,6])
                     if random.randrange(8) == 0:
-                        cell.walltype = potential
+                        cell.setWallType(potential)
                 else:
                     # Walls
                     if random.randrange(5) == 0:

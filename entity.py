@@ -90,24 +90,24 @@ class Trap(Entity):
         self.damage = TRAPS[trap][2]
         self.current = TRAPS[trap][0]
         self.post_image = TRAPS[trap][1]
+        self.requires_dialogue = TRAPS[trap][3]
         self.sprung = False
     
     def Spring(self, entity):
-        if entity.type == "Player":
-            entity.health -= damage
-            self.current = self.post_Image
-            if self.trap == "Spikes":
-                self.post_image = None
-                self.damage = 0
-            return self.trap == "Portal"
+        entity.health -= damage
+        self.current = self.post_Image
+        if self.trap == "Spikes":
+            self.post_image = None
+            self.damage = 0
         return False
 
 
 
+# [First image id], [Second image id], [Damage dealt], [Dialogue]
 TRAPS = {
-    "Spikes":   [ [6, 5],   [6, 6], 1, ],
-    "Hole":     [ [4, 1],   None,   2 ],
-    "Portal":   [ [4, 2],   None,   0]
+    "Spikes":   [ [6, 5],   [6, 6], 1,  False],
+    "Hole":     [ [4, 1],   None,   0,  True],
+    "Portal":   [ [4, 2],   None,   0,  True]
 }
 DEFAULT_MONSTER = Monster()
 DEFAULT_MONSTER.health = 5
