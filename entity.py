@@ -22,8 +22,8 @@ class Player(Entity):
         self.armor = 5
         self.armor_quality = 3
         self.armor_max_quality = 5
-        self.inventory = []
         self.max_inventory = 3
+        self.inventory = [None]*self.max_inventory
         self.money = 0
         self.speed = 2
         self.blocking = True

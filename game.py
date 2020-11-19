@@ -36,7 +36,7 @@ class Game:
         self.waitForDialogue = False
 
         self.currentCellContents = []
-        self.DEBUGGING = False
+        self.DEBUGGING = True
     
     def triggerInput(self, triggers):
         if len(triggers) == 0: return
@@ -57,16 +57,36 @@ class Game:
             self.direction = "E"
         if 'left' in keys:
             self.direction = "W"
-        if '1' in keys:
-            # TODO
-            pass
-        if '2' in keys:
-            # TODO
-            pass
-        if '3' in keys:
-            # TODO
-            pass
+       
+        if len([el for el in ['1','2','3'] if el in keys]) > 0:
+            index = 0
+            for n in range(3):
+                if ['1', '2', '3'][n] in keys:
+                    index = n
+                    break
+                
+            item_list = []
+            trap_list = []
+            for content in self.currentCellContents:
+                if content.type == "Trap":
+                    trap_list.append(content)
+                    print("Trapped!")
+                elif content.type == "Item":
+                    item_list.append(content)
+            # Item key selected
+            # 1, 2, and 3 do different things depending on situation.
+            # TODO: While on a trap, it progresses the trap
+            # TODO: While on a hole, it gives the hide/ignore options
+            if len(trap_list) > 0:
+                pass
+            # TODO: While on a chest, it gives the ability to pick up and item
+            elif len(item_list) > 0:
+                self.map.removeEntity(item_list[0])
+                self.player.inventory[index] = item_list[0]
+                self.graphics_updates = True
+
         if 'space' in keys:
+            # Wait a turn
             # TODO
             pass
         if 'exit' in keys:
@@ -143,8 +163,13 @@ class Game:
                     if len(entity.path) == 0:
                         # entity.path = self.map.pathToPoint(entity.position, entity.target, entity.lastD)
                         entity.path = self.map.pathToPoint(entity.position, entity.target)
+                        while entity.path is False: # Target Unreachable
+                            entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.target))
+                            entity.path = self.map.pathToPoint(entity.position, entity.target)
+                            entity.chasing = False
 
-                    # Newer version
+                        
+
                     acted = False
                     while not acted:
                         acted = True
@@ -153,6 +178,10 @@ class Game:
                             if len(entity.path) == 0:
                                 entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.home))
                                 entity.path = self.map.pathToPoint(entity.position, entity.target)
+                                while entity.path is False: # Target Unreachable
+                                    entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.target))
+                                    entity.path = self.map.pathToPoint(entity.position, entity.target)
+                                    entity.chasing = False
                             loc = entity.path.pop(0)
                             dx = loc[0] - entity.position[0]
                             dy = loc[1] - entity.position[1]
@@ -200,6 +229,19 @@ class Game:
         gg.set_alpha(200)
         panelBG = self.sprites.getImage(1, 1)
 
+        # Bottom panel prep
+        revealed = False
+        item_list = []
+        trap_list = []
+        for content in self.currentCellContents:
+            if content.type == "Trap":
+                revealed = True
+                trap_list.append(content.current)
+                print("Trapped!")
+            elif content.type == "Item":
+                revealed = True
+                item_list.append(content.index) # Add item to the list
+
         # Left panel BG
         width = 5
         height = 10
@@ -239,31 +281,28 @@ class Game:
             pygame.Rect(TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor, self.sprites.cellSize[0], 3))
         # Boxes
         cursor += 5
-        for item in range(self.player.max_inventory):
+        for i in range(self.player.max_inventory):
+            rgb = [(100, 100, 100), (150, 150, 150)]
+            if len(item_list) > 0 and self.player.inventory[i] is None:
+                rgb = [(70, 100, 70), (100, 150, 100)]
+            elif len(item_list) > 0:
+                rgb = [(100, 70, 70), (150, 100, 100)]
             pygame.draw.rect(
                 gg,
-                (100, 100, 100),
+                rgb[0],
                 pygame.Rect(TL[0] + w/10, cursor, 8*w/10, self.sprites.cellSize[1]*1.5))
             pygame.draw.rect(
                 gg,
-                (150, 150, 150),
+                rgb[1],
                 pygame.Rect(TL[0] + w/10 + 2, cursor + 2, 8*w/10 - 4, self.sprites.cellSize[1]*1.5 - 4))
-            if item < len(self.player.inventory):
-                pass # TODO: Draw picked up items
+            if len(item_list) > 0:
+                # Draw arrow
+                gi.blit(self.sprites.getImage(6, 7 + i), (TL[0] + 9*w/10, cursor))
+            if not self.player.inventory[i] is None:
+                item = self.player.inventory[i]
+                gi.blit(self.sprites.getImage(5, item.index), (TL[0] + 2*w/10, cursor + self.sprites.cellSize[1]/2))
             cursor += 2*self.sprites.cellSize[1]
 
-        # Bottom panel prep
-        revealed = False
-        item_list = []
-        trap_list = []
-        for content in self.currentCellContents:
-            if content.type == "Trap":
-                revealed = True
-                trap_list.append(content.current)
-                print("Trapped!")
-            elif content.type == "Item":
-                revealed = True
-                item_list.append(content.index) # Add item to the list
 
         if revealed:
             # Bottom panel BG
@@ -281,16 +320,20 @@ class Game:
                     pos = (x*self.sprites.cellSize[0] + offset_x,(y*self.sprites.cellSize[1] + offset_y))
                     gg.blit(panelBG, pos)
            
-            gi.blit(self.sprites.getImage(5, self.player.armor), (TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor))
             # Bottom panel FG
             # TODO Add various messages and only draw this if one is available (passed through the 'options' param)
+            cursor = 0
             if len(trap_list) > 0:
                 pass
                 # TODO: Trap first
             elif len(item_list) > 0:
+                w = (w -  len(item_list)*self.sprites.cellSize[0]) /2
                 for i in range(len(item_list)):
-                    pass # TODO: Draw items to be picked up
-                # TODO: Okay you can have your items, if you must.
+                    pos = [w + cursor + offset_x + self.sprites.cellSize[0], (h + self.sprites.cellSize[1])/2 + offset_y]
+                    gi.blit(self.sprites.getImage(5, item_list[i]), pos)
+                    if self.DEBUGGING:
+                        pygame.draw.rect(gi, (255,0,0), pos + self.sprites.cellSize, 1)
+                    cursor += self.sprites.cellSize[0]
 
 
 
