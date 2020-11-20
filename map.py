@@ -46,6 +46,7 @@ class Map:
         self.SIDES = {"N":["W", "E"],"S":["W", "E"],"E":["N", "S"],"W":["N", "S"]}
         self.DX = {"N":0, "S":0, "E":1, "W":-1}
         self.DY = {"N":1, "S":-1, "E":0, "W":0}
+        self.DEBUGGING = False
 
     def generatedSize(self, i = -1):
         if i == -1:
@@ -58,10 +59,10 @@ class Map:
 
     def addEntity(self, entity):
         pos = entity.position
-        if self.cells[pos[0]][pos[1]].wall:
+        if self.cells[pos[0]][pos[1]].wall and entity.type != "Decor":
             return False
         valid = True
-        if len(self.cells[pos[0]][pos[1]].contents) > 0:
+        if len(self.cells[pos[0]][pos[1]].contents) > 0 and entity.type != "Decor":
             for n in self.cells[pos[0]][pos[1]].contents:
                 if n.blocking:
                     valid = False
@@ -157,6 +158,7 @@ class Map:
         for d in self.DX.keys():
             cells = cells + self.getCellsFromEnttiy(entity, dist, d)
         for cell in cells:
+            self.visibleCells.append(self.cells[cell[0]][cell[1]])
             self.cells[cell[0]][cell[1]].revealed = True
             self.cells[cell[0]][cell[1]].visible =  (math.dist((0, 0), (dist, dist)) - math.dist(cell, pos)) / math.dist((0, 0), (dist, dist))
 
@@ -243,18 +245,21 @@ class Map:
                 if not self.cells[pos[0]][pos[1]].wall:
                     return pos
 
-    def entitySeesEntity(self, looker, target, lastD):
-        arr = list(self.DX.keys())
-        if lastD in self.DX:
-            arr = [self.OPPOSITE[lastD]]
-        for d in arr: 
-            px, py = looker.position
-            while not self.cells[px][py].wall:
-                if target in self.cells[px][py].contents:
+    def entitySeesEntity(self, looker, target, lastD, distance):
+        if math.dist(looker.position, target.position) <= distance or self.DEBUGGING:
+            arr = list(self.DX.keys())
+            if lastD in self.DX:
+                arr = [lastD]
+            for d in arr:
+                cells = self.getCellsFromEnttiy(looker, distance, d)
+            for cell in cells:
+                if self.DEBUGGING:
+                    self.cells[cell[0]][cell[1]].visible = 1
+                    self.cells[cell[0]][cell[1]].revealed = True
+                    self.visibleCells.append(self.cells[cell[0]][cell[1]])
+                    
+                if target.position == cell:
                     return True
-                else:
-                    px += self.DX[d]
-                    py += self.DY[d]
         return False
 
     

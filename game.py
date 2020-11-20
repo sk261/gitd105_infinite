@@ -1,6 +1,6 @@
 import map
 import pygame
-import entity
+import entity as E
 import math
 import random
 random.seed()
@@ -10,7 +10,7 @@ time = lambda: int(round(_time.time() * 1000))
 
 class Game:
     def __init__(self, spritesheet):
-        self.player = entity.Player()
+        self.player = E.Player()
         self.direction = ""
         self.player_moves = 0
 
@@ -20,7 +20,7 @@ class Game:
         self.player.position = self.map.coordToGraphic(10,10)
         self.map.addEntity(self.player)
         self.map.revealCellsFromEntity(self.player)
-        self.map.generateMonsters(10, entity.DEFAULT_MONSTER)
+        self.map.generateMonsters(10, E.DEFAULT_MONSTER)
         self.level = 0
 
         self.sprites = spritesheet
@@ -36,7 +36,7 @@ class Game:
         self.waitForDialogue = False
 
         self.currentCellContents = []
-        self.DEBUGGING = True
+        self.DEBUGGING = False
     
     def triggerInput(self, triggers):
         if len(triggers) == 0: return
@@ -57,6 +57,9 @@ class Game:
             self.direction = "E"
         if 'left' in keys:
             self.direction = "W"
+        if 'space' in keys:
+            self.direction = False
+            pass
        
         if len([el for el in ['1','2','3'] if el in keys]) > 0:
             index = 0
@@ -79,16 +82,11 @@ class Game:
             # TODO: While on a hole, it gives the hide/ignore options
             if len(trap_list) > 0:
                 pass
-            # TODO: While on a chest, it gives the ability to pick up and item
             elif len(item_list) > 0:
                 self.map.removeEntity(item_list[0])
                 self.player.inventory[index] = item_list[0]
                 self.graphics_updates = True
 
-        if 'space' in keys:
-            # Wait a turn
-            # TODO
-            pass
         if 'exit' in keys:
             # TODO - end game
             pass
@@ -108,6 +106,10 @@ class Game:
         playerTurn = False
 
         self.handleControls()
+        if self.direction == False:
+            self.player_moves += 1
+            self.direction = ""
+            self.graphics_updates = True
         if self.direction != "" and not self.waitForDialogue:
             self.graphics_updates = True
             
@@ -128,13 +130,13 @@ class Game:
                 for entity in self.map.contents:
                     if not entity.moving:
                         continue
-                    if self.map.entitySeesEntity(entity, self.player, entity.lastD):
+                    if self.map.entitySeesEntity(entity, self.player, entity.lastD, entity.vision):
                         entity.changeTarget([self.player.position[0], self.player.position[1]])
                         entity.chasing = True
 
-            if self.player_moves >= self.player.speed:
-                self.player_moves = 0
-                playerTurn = True
+        if self.player_moves >= self.player.speed:
+            self.player_moves = 0
+            playerTurn = True
         
         self.direction = ""
             
@@ -151,7 +153,7 @@ class Game:
 
                 for s in range(entity.speed):
                     if entity.target == entity.position or entity.target == None:
-                        if self.map.entitySeesEntity(entity, self.player, entity.lastD):
+                        if self.map.entitySeesEntity(entity, self.player, entity.lastD, entity.vision):
                             entity.changeTarget([self.player.position[0], self.player.position[1]])
                             entity.chasing = True
                         elif entity.position == entity.home:
@@ -202,9 +204,15 @@ class Game:
                                     blocker.updatePath()
                                     entity.updatePath()
                             else:
-                                acted = False
-                                entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.home))
-                                # Something's blocking TODO (probably attack)
+                                if self.player.position == loc:
+                                    # TODO: Player is blocking, kill them.
+                                    if self.player.dealDamage(entity.damage) > 0:
+                                        self.map.addEntity(E.Decor(4, loc))
+                                else:
+                                    acted = False
+                                    entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.home))
+                        else:
+                            entity.lastD = d
                             
                         
 
@@ -262,23 +270,25 @@ class Game:
         # Hearts
         cursor += self.sprites.cellSize[1]
         full_hearts = int(self.player.health / 2)
-        halfHeart = (self.player.health % 2 == 0)
-        for n in range(3):
-            off = (n-1) + 1/2
+        halfHeart = (self.player.health % 2 == 1)
+        for _n in range(3):
+            off = (_n-1) + 1/2
+            n = 2-_n
             i = 4
             if n < full_hearts:
                 i = 2
-            elif n == full_hearts and halfHeart:
+            elif n == full_hearts and halfHeart and self.player.health > 0:
                 i = 3
             gi.blit(self.sprites.getImage(5, i), (TL[0] + w/2 - off*self.sprites.cellSize[0], cursor))
         # Current Armor
         cursor += self.sprites.cellSize[1]
-        gi.blit(self.sprites.getImage(5, self.player.armor), (TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor))
-        cursor += self.sprites.cellSize[1]
-        pygame.draw.rect(
-            gi,
-            self.getPercentColour(self.player.armor_quality, self.player.armor_max_quality),
-            pygame.Rect(TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor, self.sprites.cellSize[0], 3))
+        if not self.player.armor is None:
+            gi.blit(self.sprites.getImage(5, self.player.armor), (TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor))
+            cursor += self.sprites.cellSize[1]
+            pygame.draw.rect(
+                gi,
+                self.getPercentColour(self.player.armor_quality, self.player.armor_max_quality),
+                pygame.Rect(TL[0] + w/2 - self.sprites.cellSize[0]/2, cursor, self.sprites.cellSize[0], 3))
         # Boxes
         cursor += 5
         for i in range(self.player.max_inventory):
@@ -360,14 +370,14 @@ class Game:
                 if entity.type == "Player":
                     fg.blit(self.sprites.getImage(3, 0), pos)
                 elif entity.type == "Monster":
+                    if entity.chasing:
+                        fg.blit(self.sprites.getImage(6, 0), [pos[0], pos[1]-self.sprites.cellSize[1]])
                     fg.blit(self.sprites.getImage(2, 0), pos)
                 elif entity.type == "Trap":
                     if not entity.current is None:
                         fg.blit(self.sprites.getImage(entity.current[0], entity.current[1]), pos)
                 elif entity.type == "Item":
                     fg.blit(self.sprites.getImage(4, 0), pos)
-                elif entity.type == "Decor":
-                    pass
 
         return fg
 
@@ -396,6 +406,9 @@ class Game:
                     bg.blit(shadow, pos)
                     if self.DEBUGGING and arr[x][y].visible != 0:
                         pygame.draw.rect(bg, (255,0,0), pos + self.sprites.cellSize, 1)
+                    for entity in arr[x][y].contents:
+                        if entity.type == "Decor":
+                            fg.blit(self.sprites.getImage(4, entity.index), pos)
 
         return bg
 

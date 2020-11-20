@@ -11,6 +11,7 @@ class Entity:
     
     def clone(self):
         return copy.deepcopy(self)
+    
         
 class Player(Entity):
     def __init__(self):
@@ -28,11 +29,26 @@ class Player(Entity):
         self.speed = 2
         self.blocking = True
 
-    def addItem(self, entity):
-        if self.max_inventory < len(self.inventory):
-            self.inventory.append(entity)
-        else:
-            return False
+    def dealDamage(self, damage):
+        damage_dealt = max(damage - self.armor_quality, 0)
+        self.health = max(self.health - damage_dealt, 0)
+        if self.armor != None:
+            self.armor_quality -= damage
+            if self.armor_quality <= 0:
+                self.armor = None
+                self.armor_quality = 0
+        return damage_dealt
+        
+
+    
+
+"""
+def addItem(self, entity):
+    if self.max_inventory < len(self.inventory):
+        self.inventory.append(entity)
+    else:
+        return False
+"""
         
 
 class Monster(Entity):
@@ -44,6 +60,7 @@ class Monster(Entity):
         self.health = 1
         self.damage = 1
         self.speed = 1
+        self.vision = 4
         self.target = None
         self.home = None
         self.path = []
@@ -66,6 +83,9 @@ class Monster(Entity):
                 pass
         else:
             self.path = []
+            
+    def dealDamage(self, damage):
+        pass
     
 
 class Item(Entity):
@@ -76,10 +96,11 @@ class Item(Entity):
         self.quality = 0
 
 class Decor(Entity): #Blood
-    def __init__(self, index):
+    def __init__(self, index, pos):
         super(Decor, self).__init__()
         self.type = "Decor"
         self.index = index
+        self.position = [el for el in pos]
 
 
 class Trap(Entity):
@@ -111,5 +132,5 @@ TRAPS = {
 }
 DEFAULT_MONSTER = Monster()
 DEFAULT_MONSTER.health = 5
-DEFAULT_MONSTER.damage = 1
+DEFAULT_MONSTER.damage = 3
 DEFAULT_MONSTER.speed = 1
