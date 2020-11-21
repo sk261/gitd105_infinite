@@ -39,16 +39,6 @@ class Player(Entity):
                 self.armor_quality = 0
         return damage_dealt
         
-
-    
-
-"""
-def addItem(self, entity):
-    if self.max_inventory < len(self.inventory):
-        self.inventory.append(entity)
-    else:
-        return False
-"""
         
 
 class Monster(Entity):
@@ -65,6 +55,7 @@ class Monster(Entity):
         self.home = None
         self.path = []
         self.chasing = False
+        self.stunned = 0
     
     def changeTarget(self, target):
         if not self.target == target:
@@ -96,9 +87,10 @@ class Item(Entity):
         self.quality = 0
 
 class Decor(Entity): #Blood
-    def __init__(self, index, pos):
+    def __init__(self, index, pos, category = 4):
         super(Decor, self).__init__()
         self.type = "Decor"
+        self.category = category
         self.index = index
         self.position = [el for el in pos]
 

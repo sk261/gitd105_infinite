@@ -161,6 +161,16 @@ class Map:
             self.visibleCells.append(self.cells[cell[0]][cell[1]])
             self.cells[cell[0]][cell[1]].revealed = True
             self.cells[cell[0]][cell[1]].visible =  (math.dist((0, 0), (dist, dist)) - math.dist(cell, pos)) / math.dist((0, 0), (dist, dist))
+    
+    def revealCellsInRadius(self, position, dist = 10):
+        pos = position
+        for x in range(int(dist/2-1), int(dist/2)):
+            for y in range(int(dist/2-1), int(dist/2)):
+                if self.cellExists(pos[0]+x, pos[0]+y):
+                    cell_pos = [pos[0]+x, pos[1]+y]
+                    if math.dist(position, cell_pos) <= dist:
+                        self.cells[cell_pos[0]][cell_pos[1]].revealed = True
+                        self.cells[cell_pos[0]][cell_pos[1]].visible = 1
 
     def removeEntity(self, entity):
         if entity in self.contents:

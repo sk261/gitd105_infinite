@@ -14,7 +14,6 @@ class Game:
         self.direction = ""
         self.player_moves = 0
 
-        self.items = 0 # TODO
         self.map = map.Map()
         self.map.generateMap([10,10])
         self.player.position = self.map.coordToGraphic(10,10)
@@ -73,19 +72,66 @@ class Game:
             for content in self.currentCellContents:
                 if content.type == "Trap":
                     trap_list.append(content)
-                    print("Trapped!")
                 elif content.type == "Item":
                     item_list.append(content)
             # Item key selected
             # 1, 2, and 3 do different things depending on situation.
-            # TODO: While on a trap, it progresses the trap
-            # TODO: While on a hole, it gives the hide/ignore options
             if len(trap_list) > 0:
+                # TODO: While on a trap, it progresses the trap
+                # TODO: While on a hole, it gives the hide/ignore options
                 pass
-            elif len(item_list) > 0:
+            elif len(item_list) > 0: # PIck up item
                 self.map.removeEntity(item_list[0])
                 self.player.inventory[index] = item_list[0]
                 self.graphics_updates = True
+            else:
+                if not self.player.inventory[index] is None:
+                    item = self.player.inventory[index]
+                    if item.index == 1:
+                        # Item potion
+                        self.player.health = min(self.player.health + 2, self.player.max_health)
+                        # Heals player
+                    elif item.index == 0:
+                        # Item book
+                        self.map.revealCellsInRadius(self.player.position, 10)
+                        # Reveals everything 10 tiles around you.
+                        pass
+                    elif item.index == 5:
+                        # Item leather armor
+                        self.player.armor = 5
+                        self.player.armor_quality = 3
+                        self.player.armor_max_quality = 3
+                        # Equip new armor
+                        pass
+                    elif item.index == 6:
+                        # Item metal armor
+                        self.player.armor = 6
+                        self.player.armor_quality = 5
+                        self.player.armor_max_quality = 5
+                        # Equip new armor
+                        pass
+                    elif item.index == 7:
+                        # TODO: Item shield
+                        # Place a wall on the player's space
+                        pass
+                    elif item.index == 8:
+                        # TODO: Item bow
+                        # Attack down a hall (knocks out someone for 2 turns)
+                        pass
+                    elif item.index == 9:
+                        # TODO: Item orb
+                        # Knocks out everyone for 1 turn
+                        pass
+                    elif item.index == 10:
+                        # TODO: Item boot
+                        # You 'run' to the end of the hall.
+                        pass
+                    elif item.index == 11:
+                        # TODO: Item knife
+                        # Stuns everyone adjacent to you for 2 turns.
+                        pass
+                # TODO: While on nothing, use item
+                pass
 
         if 'exit' in keys:
             # TODO - end game
@@ -150,8 +196,10 @@ class Game:
                 if not entity.moving:
                     continue
                 # Target selection (normal travel)
-
                 for s in range(entity.speed):
+                    if entity.stunned > 0:
+                        entity.stunned -= 1
+                        continue
                     if entity.target == entity.position or entity.target == None:
                         if self.map.entitySeesEntity(entity, self.player, entity.lastD, entity.vision):
                             entity.changeTarget([self.player.position[0], self.player.position[1]])
@@ -205,7 +253,6 @@ class Game:
                                     entity.updatePath()
                             else:
                                 if self.player.position == loc:
-                                    # TODO: Player is blocking, kill them.
                                     if self.player.dealDamage(entity.damage) > 0:
                                         self.map.addEntity(E.Decor(4, loc))
                                 else:
@@ -336,7 +383,7 @@ class Game:
             if len(trap_list) > 0:
                 pass
                 # TODO: Trap first
-            elif len(item_list) > 0:
+            elif len(item_list) > 0: # Items
                 w = (w -  len(item_list)*self.sprites.cellSize[0]) /2
                 for i in range(len(item_list)):
                     pos = [w + cursor + offset_x + self.sprites.cellSize[0], (h + self.sprites.cellSize[1])/2 + offset_y]
@@ -408,7 +455,7 @@ class Game:
                         pygame.draw.rect(bg, (255,0,0), pos + self.sprites.cellSize, 1)
                     for entity in arr[x][y].contents:
                         if entity.type == "Decor":
-                            fg.blit(self.sprites.getImage(4, entity.index), pos)
+                            fg.blit(self.sprites.getImage(entity.category, entity.index), pos)
 
         return bg
 
