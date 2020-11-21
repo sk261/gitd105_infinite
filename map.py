@@ -164,11 +164,12 @@ class Map:
     
     def revealCellsInRadius(self, position, dist = 10):
         pos = position
-        for x in range(int(dist/2-1), int(dist/2)):
-            for y in range(int(dist/2-1), int(dist/2)):
-                if self.cellExists(pos[0]+x, pos[0]+y):
+        for x in range(int(-dist-1), int(dist+1)):
+            for y in range(int(-dist-1), int(dist+1)):
+                if self.cellExists(pos[0]+x, pos[1]+y):
                     cell_pos = [pos[0]+x, pos[1]+y]
                     if math.dist(position, cell_pos) <= dist:
+                        self.visibleCells.append(self.cells[cell_pos[0]][cell_pos[1]])
                         self.cells[cell_pos[0]][cell_pos[1]].revealed = True
                         self.cells[cell_pos[0]][cell_pos[1]].visible = 1
 
@@ -188,7 +189,12 @@ class Map:
                 if nx < 0 or ny < 0 or nx >= self.generatedSize(0) or ny >= self.generatedSize(1):
                     return False
                 newcell = self.cells[nx][ny]
-                if newcell.wall:
+                if entity.type == "Player" and newcell.exit:
+                    cell.contents.remove(target)
+                    newcell.contents.append(target)
+                    target.position = [nx, ny]
+                    return True
+                elif newcell.wall:
                     return False
                 for n in newcell.contents:
                     if n.blocking:
@@ -413,7 +419,7 @@ class Map:
             for y in range(self.size[1]):
                 temp.append(_Cell())
             self.cells.append(temp)
-        self.carvePath(start)
+        self.carvePath([start, self.size[1]-1])
         for n in range(self.diversity):
             x, y = random.randrange(self.size[0]), random.randrange(self.size[1])
             choices = self.cells[x][y].WALLS

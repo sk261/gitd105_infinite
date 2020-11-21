@@ -20,11 +20,14 @@ class Player(Entity):
         self.moving = False
         self.health = 6
         self.max_health = 6
-        self.armor = 5
-        self.armor_quality = 3
-        self.armor_max_quality = 5
+        self.armor = None
+        self.armor_quality = 0
+        self.armor_max_quality = 0
         self.max_inventory = 3
         self.inventory = [None]*self.max_inventory
+        self.inventory[0] = Item(0)
+        self.inventory[1] = Item(7)
+        self.inventory[2] = Item(8)
         self.money = 0
         self.speed = 2
         self.blocking = True

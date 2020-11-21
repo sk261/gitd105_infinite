@@ -14,13 +14,8 @@ class Game:
         self.direction = ""
         self.player_moves = 0
 
-        self.map = map.Map()
-        self.map.generateMap([10,10])
-        self.player.position = self.map.coordToGraphic(10,10)
-        self.map.addEntity(self.player)
-        self.map.revealCellsFromEntity(self.player)
-        self.map.generateMonsters(10, E.DEFAULT_MONSTER)
         self.level = 0
+        self.newMap(30)
 
         self.sprites = spritesheet
 
@@ -35,7 +30,16 @@ class Game:
         self.waitForDialogue = False
 
         self.currentCellContents = []
-        self.DEBUGGING = False
+        self.DEBUGGING = True
+    
+    def newMap(self, x):
+        self.level += 1
+        self.map = map.Map()
+        self.map.generateMap(int(x/self.map.size[0]))
+        self.player.position = [x,1]
+        self.map.addEntity(self.player)
+        self.map.generateMonsters(10 + 2*self.level, E.DEFAULT_MONSTER)
+        self.map.revealCellsFromEntity(self.player)
     
     def triggerInput(self, triggers):
         if len(triggers) == 0: return
@@ -87,15 +91,14 @@ class Game:
             else:
                 if not self.player.inventory[index] is None:
                     item = self.player.inventory[index]
-                    if item.index == 1:
+                    if item.index == 0:
+                        # Item book
+                        self.map.revealCellsInRadius(self.player.position, 15)
+                        # Reveals everything 10 tiles around you.
+                    elif item.index == 1:
                         # Item potion
                         self.player.health = min(self.player.health + 2, self.player.max_health)
                         # Heals player
-                    elif item.index == 0:
-                        # Item book
-                        self.map.revealCellsInRadius(self.player.position, 10)
-                        # Reveals everything 10 tiles around you.
-                        pass
                     elif item.index == 5:
                         # Item leather armor
                         self.player.armor = 5
@@ -111,7 +114,9 @@ class Game:
                         # Equip new armor
                         pass
                     elif item.index == 7:
-                        # TODO: Item shield
+                        # Item shield
+                        self.map.cells[self.player.position[0]][self.player.position[1]].walltype = 7
+                        self.map.cells[self.player.position[0]][self.player.position[1]].wall = True
                         # Place a wall on the player's space
                         pass
                     elif item.index == 8:
@@ -119,8 +124,12 @@ class Game:
                         # Attack down a hall (knocks out someone for 2 turns)
                         pass
                     elif item.index == 9:
-                        # TODO: Item orb
+                        # Item orb
+                        for entity in self.map.contents:
+                            if entity.type == "Monster":
+                                entity.stunned += 1
                         # Knocks out everyone for 1 turn
+                        # TODO: Trigger 'strike' effects
                         pass
                     elif item.index == 10:
                         # TODO: Item boot
@@ -130,8 +139,8 @@ class Game:
                         # TODO: Item knife
                         # Stuns everyone adjacent to you for 2 turns.
                         pass
-                # TODO: While on nothing, use item
-                pass
+                    self.graphics_updates = True
+                    self.player.inventory[index] = None
 
         if 'exit' in keys:
             # TODO - end game
@@ -161,6 +170,10 @@ class Game:
             
             # Player movement
             if self.map.moveEntity(self.player, self.direction):
+                if self.map.cells[self.player.position[0]][self.player.position[1]].exit:
+
+                    return True
+                self.player.lastD = self.direction
                 self.map.clearVisibility()
                 self.map.revealCellsFromEntity(self.player)
                 self.currentCellContents = self.map.cells[self.player.position[0]][self.player.position[1]].contents
@@ -358,6 +371,38 @@ class Game:
             if not self.player.inventory[i] is None:
                 item = self.player.inventory[i]
                 gi.blit(self.sprites.getImage(5, item.index), (TL[0] + 2*w/10, cursor + self.sprites.cellSize[1]/2))
+                dir_index = {"N":0.1, "E":0.2, "S":0.3, "W":0}
+                _DX = {"N": 0, "S": 0, "E": self.sprites.cellSize[0], "W": 0}
+                _DY = {"N": 0, "S": self.sprites.cellSize[1]/2, "E": self.sprites.cellSize[1]/2, "W":self.sprites.cellSize[1]/2}
+                # TODO: Draw an arrow in the direction the player is walking, as well as the attack symbol
+                if item.index == 0: #Book
+                    gi.blit(self.sprites.getImage(6, 0), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                elif item.index == 1: #potion
+                    gi.blit(self.sprites.getImage(5, 2), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                elif item.index == 5: #leather armor
+                    gi.blit(self.sprites.getImage(6, 3), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                    gi.blit(self.sprites.getImage(6, 1), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                elif item.index == 6: #metal armor
+                    gi.blit(self.sprites.getImage(6, 3), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                    gi.blit(self.sprites.getImage(6, 2), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                elif item.index == 7: #shield
+                    gi.blit(self.sprites.getImage(0, 0), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                    gi.blit(self.sprites.getImage(6, 3), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                elif item.index == 8: #Bow
+                    if self.player.lastD in _DX.keys():
+                        _dir = dir_index[self.player.lastD]
+                        # arrow
+                        gi.blit(self.sprites.getImage(6, 10+_dir),
+                        (TL[0] + 5*w/10 + _DX[self.map.OPPOSITE[self.player.lastD]], cursor + _DY[self.map.OPPOSITE[self.player.lastD]]))
+                        # object
+                        gi.blit(self.sprites.getImage(6, 1),
+                        (TL[0] + 5*w/10 + _DX[self.player.lastD], cursor + _DY[self.player.lastD]))
+                elif item.index == 9: #Orb
+                    pass
+                elif item.index == 10: #Boot
+                    pass
+                elif item.index == 11: #knife
+                    pass
             cursor += 2*self.sprites.cellSize[1]
 
 
@@ -455,7 +500,7 @@ class Game:
                         pygame.draw.rect(bg, (255,0,0), pos + self.sprites.cellSize, 1)
                     for entity in arr[x][y].contents:
                         if entity.type == "Decor":
-                            fg.blit(self.sprites.getImage(entity.category, entity.index), pos)
+                            bg.blit(self.sprites.getImage(entity.category, entity.index), pos)
 
         return bg
 
