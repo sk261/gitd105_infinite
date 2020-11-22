@@ -33,7 +33,7 @@ class Map:
         self.size = [20,20]
         self.contents = []
         self.rooms = []
-        self.hallway_size = 2
+        self.hallway_size = 3
         self.visibleCells = []
 
         self.nodes = {}
@@ -207,34 +207,129 @@ class Map:
 
     # Turns a wall chart into a cell map
     def _getCellWallMap(self):
-        cell_size = self.hallway_size
         ret = []
         for x in range(self.size[0]):
-            tempL, tempM, tempR = [], [], []
+            chains = []
+            for n in range(self.hallway_size+2):
+                chains.append([])
             for y in range(self.size[1]):
+                hall_size = self.hallway_size + 2
+                arr = []
+                for n in range(hall_size):
+                    arr.append([False]*hall_size)
+                pick = random.randrange(3)
+                if pick == 0:
+                    # Straight
+                    arr[0][0] = True
+                    arr[hall_size-1][0] = True
+                    arr[hall_size-1][hall_size-1] = True
+                    arr[0][hall_size-1] = True
+                    for t in range(1, hall_size - 1):
+                        arr[t][0] = self.cells[x][y].WALLS["S"]
+                        arr[t][hall_size-1] = self.cells[x][y].WALLS["N"]
+                        arr[hall_size-1][t] = self.cells[x][y].WALLS["E"]
+                        arr[0][t] = self.cells[x][y].WALLS["W"]
+                elif pick == 1:
+                    # Curved
+                    T, R, L, B = self.cells[x][y].WALLS["N"], self.cells[x][y].WALLS["N"], self.cells[x][y].WALLS["S"], self.cells[x][y].WALLS["S"]
+                    T, L, B, R = T or self.cells[x][y].WALLS["W"], L or self.cells[x][y].WALLS["W"], B or self.cells[x][y].WALLS["E"], R or self.cells[x][y].WALLS["E"]
+                    
+                    for t in range(int((hall_size) / 2)):
+                        pass
+                        arr[t][t] = L
+                        arr[hall_size-1-t][t] = B
+                        arr[hall_size-1-t][hall_size-1-t] = R
+                        arr[t][hall_size-1-t] = T
+                    
+                    for t in range(1, hall_size - 1):
+                        arr[t][0] = self.cells[x][y].WALLS["S"]
+                        arr[t][hall_size-1] = self.cells[x][y].WALLS["N"]
+                        arr[hall_size-1][t] = self.cells[x][y].WALLS["E"]
+                        arr[0][t] = self.cells[x][y].WALLS["W"]
+                else:
+                    # Cuts
+                    N, S, E, W = self.cells[x][y].WALLS["N"], self.cells[x][y].WALLS["S"], self.cells[x][y].WALLS["E"], self.cells[x][y].WALLS["W"]
+                    arr[0][0] = True
+                    arr[hall_size-1][0] = True
+                    arr[hall_size-1][hall_size-1] = True
+                    arr[0][hall_size-1] = True
+                    
+                    for t in range(1, hall_size-3):
+                        arr[hall_size-2][hall_size - 1 - t] = True
+                        arr[1][t] = True
+                        arr[t][1] = True
+                        arr[hall_size-1-t][hall_size-2] = True
+                    
+                    for t in range(1, hall_size - 1):
+                        arr[t][0] = S
+                        arr[t][hall_size-1] = N
+                        arr[hall_size-1][t] = E
+                        arr[0][t] = W
 
-                if y == 0:
-                    if x == 0:
-                        tempL.append(True)
-                    tempM.append(self.cells[x][y].WALLS["S"])
-                    tempR.append(True)
+                # Cuts
+                # L M M M R
+                # X     N X
+                # W W   N  
+                #          
+                #   S   E E
+                # X S     X
+                #
+                # L M M R
+                # X   N X
+                # W      
+                #       E
+                # X S   X
+                #
+                # L M M M M R
+                # X N N N N X
+                # W W W   N E 
+                # W       N E
+                #   S       E
+                #   S   E E E
+                # X S S     X
+                #
 
-                for n in range(cell_size):
-                    if x == 0:
-                        tempL.append(self.cells[x][y].WALLS["W"])
-                    tempM.append(False)
-                    tempR.append(self.cells[x][y].WALLS["E"])
-                
-                if x == 0:
-                    tempL.append(True)
-                tempM.append(self.cells[x][y].WALLS["N"])
-                tempR.append(True)
 
-            if x == 0:
-                ret.append(tempL)
-            for n in range(cell_size):
-                ret.append(tempM)
-            ret.append(tempR)
+                # tiles: T = N or W, R = N or E, L = S or W, B = S or E
+                # column titles: arbitrary
+                # 5x5 samples
+                # Straight
+                # L M M M R
+                # X N N N X
+                # W       E
+                # W       E
+                # W       E
+                # X S S S X
+                #
+                # Curved
+                # L M M M R
+                # T       R
+                #   T N R
+                #   W   E  
+                #   L S B  
+                # L       B
+                #
+                # Cuts
+                # L M M M R
+                # X N   N X
+                # W W N N E
+                #   W   E  
+                # W S S E E
+                # X S   S X
+                #
+                #
+                """
+                if y != 0:
+                    for _x in range(len(arr)):
+                        arr[_x] = arr[_x][1:]
+                """
+                #for n in range(0 if x == 0 else 1, len(arr)):
+                for n in range(len(arr)):
+                    chains[n] += arr[n]
+            
+            for chain in chains:
+                if len(chain) > 0:
+                    ret.append(chain)
         return ret
         
     def cellExists(self, x, y):
@@ -245,29 +340,26 @@ class Map:
             return False
         return self.cells[x][y].contents
 
-    def getRandomRoomOrElsePoint(self, excludeRoom = False):
-        if excludeRoom == False and self.rooms > 0:
-            return self.rooms[random.randrange(len(self.rooms))]
+    def getRandomRoomOrElsePoint(self, entity):
+        choices = []
+        for room in self.rooms:
+            if room in excludeRoom:
+                continue
+                choices.append(room)
+        if len(choices) > 0:
+            return random.choice(choices)
         else:
-            if len(self.rooms) > 0:
-                random.shuffle(self.rooms)
-                for n in self.rooms:
-                    if n == excludeRoom:
-                        continue
-                    else:
-                        return n
-            while(True):
-                pos =  [random.randrange(self.generatedSize(0)), random.randrange(self.generatedSize(1))]
-                if not self.cells[pos[0]][pos[1]].wall:
-                    return pos
+            return False
+        
 
     def entitySeesEntity(self, looker, target, lastD, distance):
         if math.dist(looker.position, target.position) <= distance or self.DEBUGGING:
             arr = list(self.DX.keys())
             if lastD in self.DX:
                 arr = [lastD]
+            cells = []
             for d in arr:
-                cells = self.getCellsFromEnttiy(looker, distance, d)
+                cells += self.getCellsFromEnttiy(looker, distance, d)
             for cell in cells:
                 if self.DEBUGGING:
                     self.cells[cell[0]][cell[1]].visible = 1
@@ -282,14 +374,12 @@ class Map:
     def generateMonsters(self, quantity, monster):
         for n in range(quantity):
             temp = monster.clone()
-            if len(self.rooms) > 0:
-                temp.home = self.rooms[random.randrange(len(self.rooms))]
-            pos =  [random.randrange(self.generatedSize(0)), random.randrange(self.generatedSize(1))]
-            while temp is not False:
+            while True:
+                pos =  [random.randrange(self.generatedSize(0)), random.randrange(self.generatedSize(1))]
                 temp.position = pos
                 if self.addEntity(temp):
-                    temp = False
-                pos = [random.randrange(self.generatedSize(0)), random.randrange(self.generatedSize(1))]
+                    break
+            temp.home = [el for el in pos]
 
                 
     def cellHasType(self, position, entityType):
@@ -310,7 +400,7 @@ class Map:
 
         
 
-    def pathToPoint(self, start, end):
+    def pathToPoint(self, start, end, maxDistance):
         pq = {}
 
         pq[0] = [[start]]
@@ -325,6 +415,8 @@ class Map:
                 del pq[cpi]
             if current_path[-1] == end:
                 return current_path
+            if cpi >= maxDistance:
+                continue
             for d in self.DX:
                 if self._is_walkable_NPC(current_path[-1][0], current_path[-1][1], d):
                     pos = [current_path[-1][0], current_path[-1][1]]
@@ -341,7 +433,7 @@ class Map:
                 error_handling = current_path
 
         print("No path found")
-        return False
+        return []
 
     def _make_nodes(self):
         self.nodes = {}
@@ -410,7 +502,13 @@ class Map:
         return True
 
 
-
+    def prepare_landing(self, x):
+        self.cells[x][0].walltype = 1
+        for _x in range(max(x-2, 1), x+3):
+            for _y in range(1, 3):
+                if self.cellExists(_x, _y):
+                    self.cells[_x][_y].wall = False
+                    self.cells[_x][_y].blocksVision = False
 
     def generateMap(self, start):
         self.cells = []
@@ -442,24 +540,22 @@ class Map:
         for x in range(len(arr)):
             temp = []
             for y in range(len(arr[x])):
-                temp.append(Cell(arr[x][y]))
+                # TODO: Change from -1 to 0
+                temp.append(Cell((arr[x][y] and random.randrange(10) > -1) or x == 0 or y == 0 or x == len(arr)-1 or y == len(arr[x])-1))
             self.cells.append(temp)
-        
+        """
+        # Rooms
         for x in range(1, len(self.cells)-1):
             for y in range(1, len(self.cells[0])-1):
                     walls = 0
                     for n in self.DX:
                         walls += 1 if self.cells[x+self.DX[n]][y+self.DY[n]].wall else 0
-                    if walls == 0 and self.cells[x][y].wall: #Rooms
+                    if walls == 0 and self.cells[x][y].wall and random.randrange(4) == 0: #Rooms
                         self.rooms.append([x, y])
                         self.cells[x][y].wall = False
                         self.cells[x][y].blocksVision = False
-                        """
-                    elif walls == 3 and not self.cells[x][y].wall: #Dead ends, rooms for now.
-                        self.rooms.append([x, y])
-                        """
-
         self._make_nodes()
+        """
         
         
         

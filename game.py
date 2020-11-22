@@ -28,18 +28,23 @@ class Game:
         self.Cooldown = 0
         self.maxCooldown = 200
         self.waitForDialogue = False
+        self.graphicsCD = 0
 
         self.currentCellContents = []
-        self.DEBUGGING = True
+        self.DEBUGGING = False
     
     def newMap(self, x):
         self.level += 1
         self.map = map.Map()
         self.map.generateMap(int(x/self.map.size[0]))
+        self.map.prepare_landing(x)
         self.player.position = [x,1]
         self.map.addEntity(self.player)
         self.map.generateMonsters(10 + 2*self.level, E.DEFAULT_MONSTER)
         self.map.revealCellsFromEntity(self.player)
+        for entity in self.map.contents:
+            if entity.type == "Monster":
+                entity.chasing = False
     
     def triggerInput(self, triggers):
         if len(triggers) == 0: return
@@ -62,6 +67,8 @@ class Game:
             self.direction = "W"
         if 'space' in keys:
             self.direction = False
+            self.DEBUGGING = not self.DEBUGGING
+            self.map.DEBUGGING = not self.map.DEBUGGING
             pass
        
         if len([el for el in ['1','2','3'] if el in keys]) > 0:
@@ -153,6 +160,9 @@ class Game:
         self.size = pygame.display.get_surface().get_size()
 
         #TODO Have characters bounce and move
+        if time() > self.graphicsCD:
+            self.graphics_updates = True
+            self.graphicsCD = time() + self.maxCooldown
 
         # Turn only triggers when player performs an action
         if time() < self.Cooldown:
@@ -163,15 +173,16 @@ class Game:
         self.handleControls()
         if self.direction == False:
             self.player_moves += 1
-            self.direction = ""
             self.graphics_updates = True
-        if self.direction != "" and not self.waitForDialogue:
+        elif self.direction != "" and not self.waitForDialogue:
             self.graphics_updates = True
             
             # Player movement
             if self.map.moveEntity(self.player, self.direction):
                 if self.map.cells[self.player.position[0]][self.player.position[1]].exit:
-
+                    self.newMap(self.player.position[0])
+                    self.direction = ""
+                    self.player_moves = 0
                     return True
                 self.player.lastD = self.direction
                 self.map.clearVisibility()
@@ -189,12 +200,15 @@ class Game:
                 for entity in self.map.contents:
                     if not entity.moving:
                         continue
-                    if self.map.entitySeesEntity(entity, self.player, entity.lastD, entity.vision):
+                    if self.map.entitySeesEntity(entity, self.player, "", entity.vision):
                         entity.changeTarget([self.player.position[0], self.player.position[1]])
                         entity.chasing = True
 
+        if self.graphics_updates:
+            for entity in self.map.contents:
+                entity.hit = False
+
         if self.player_moves >= self.player.speed:
-            self.player_moves = 0
             playerTurn = True
         
         self.direction = ""
@@ -205,74 +219,73 @@ class Game:
         if playerTurn:
             self.Cooldown = time() + self.maxCooldown
             arr = self.map.contents
+            acted = False
             for entity in arr:
                 if not entity.moving:
                     continue
-                # Target selection (normal travel)
-                for s in range(entity.speed):
-                    if entity.stunned > 0:
-                        entity.stunned -= 1
-                        continue
-                    if entity.target == entity.position or entity.target == None:
-                        if self.map.entitySeesEntity(entity, self.player, entity.lastD, entity.vision):
-                            entity.changeTarget([self.player.position[0], self.player.position[1]])
-                            entity.chasing = True
-                        elif entity.position == entity.home:
-                            entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.home))
-                            entity.chasing = False
-                        else:
-                            entity.changeTarget(entity.home)
-                            entity.chasing = False
+                if entity.stunned > 0:
+                    entity.moves = 0
+                    entity.stunned -= 1
+                    continue
+                if entity.moves <= 0:
+                    continue
+                if self.map.entitySeesEntity(entity, self.player, "", entity.vision):
+                    entity.changeTarget([self.player.position[0], self.player.position[1]])
+                    entity.chasing = True
+                elif not entity.chasing or entity.position == entity.target:
+                    entity.changeTarget(entity.home)
+                    entity.chasing = False
+
+                if len(entity.path) == 0:
+                    entity.path = self.map.pathToPoint(entity.position, entity.target, 30)
                     if len(entity.path) == 0:
-                        # entity.path = self.map.pathToPoint(entity.position, entity.target, entity.lastD)
-                        entity.path = self.map.pathToPoint(entity.position, entity.target)
-                        while entity.path is False: # Target Unreachable
-                            entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.target))
-                            entity.path = self.map.pathToPoint(entity.position, entity.target)
-                            entity.chasing = False
+                        entity.home = [el for el in entity.position]
 
-                        
+                    
 
-                    acted = False
-                    while not acted:
-                        acted = True
-                        dx, dy = 0, 0
-                        while dx == 0 and dy == 0:
-                            if len(entity.path) == 0:
-                                entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.home))
-                                entity.path = self.map.pathToPoint(entity.position, entity.target)
-                                while entity.path is False: # Target Unreachable
-                                    entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.target))
-                                    entity.path = self.map.pathToPoint(entity.position, entity.target)
-                                    entity.chasing = False
-                            loc = entity.path.pop(0)
-                            dx = loc[0] - entity.position[0]
-                            dy = loc[1] - entity.position[1]
-                        if dx < 0:
-                            d = "W"
-                        elif dx > 0:
-                            d = "E"
-                        elif dy > 0:
-                            d = "N"
-                        elif dy < 0:
-                            d = "S"
-                        if not self.map.moveEntity(entity, d):
-                            # Bumped
-                            blocker = self.map.cellHasType(loc, entity.type)
-                            if not blocker == False:
-                                if blocker.requestSwap(entity.position):
-                                    self.map.swapEntities(blocker, entity)
-                                    blocker.updatePath()
-                                    entity.updatePath()
-                            else:
-                                if self.player.position == loc:
-                                    if self.player.dealDamage(entity.damage) > 0:
-                                        self.map.addEntity(E.Decor(4, loc))
-                                else:
-                                    acted = False
-                                    entity.changeTarget(self.map.getRandomRoomOrElsePoint(entity.home))
-                        else:
-                            entity.lastD = d
+                if len(entity.path) == 0 or entity.position == entity.target:
+                    entity.path = []
+                    continue
+                dx, dy = 0, 0
+                while dx == 0 and dy == 0 and len(entity.path) > 0:
+                    loc = entity.path.pop(0)
+                    dx = loc[0] - entity.position[0]
+                    dy = loc[1] - entity.position[1]
+                if dx < 0:
+                    d = "W"
+                elif dx > 0:
+                    d = "E"
+                elif dy > 0:
+                    d = "N"
+                elif dy < 0:
+                    d = "S"
+                if not self.map.moveEntity(entity, d):
+                    # Bumped
+                    blocker = self.map.cellHasType(loc, entity.type)
+                    if not blocker == False:
+                        if blocker.requestSwap(entity.position):
+                            self.map.swapEntities(blocker, entity)
+                            blocker.updatePath()
+                            entity.updatePath()
+                    else:
+                        if self.player.position == loc:
+                            if self.player.dealDamage(entity.damage) > 0:
+                                self.map.addEntity(E.Decor(4, self.player.position))
+                                entity.moves = 0
+                                acted = True
+                                entity.lastD = d
+                                self.player.hit = True
+                else:
+                    entity.moves -= 1
+                    acted = True
+                    entity.lastD = d
+            if not acted:
+                for entity in arr:
+                    if entity.moving:
+                        entity.moves = entity.speed
+                self.player_moves = 0
+            else:
+                self.graphics_updates = True
                             
                         
 
@@ -462,14 +475,18 @@ class Game:
                 if entity.type == "Player":
                     fg.blit(self.sprites.getImage(3, 0), pos)
                 elif entity.type == "Monster":
+                    fg.blit(self.sprites.getImage(2, 0), pos)
                     if entity.chasing:
                         fg.blit(self.sprites.getImage(6, 0), [pos[0], pos[1]-self.sprites.cellSize[1]])
-                    fg.blit(self.sprites.getImage(2, 0), pos)
+                    elif len(entity.path) == 0:
+                        fg.blit(self.sprites.getImage(6, 4), pos)
                 elif entity.type == "Trap":
                     if not entity.current is None:
                         fg.blit(self.sprites.getImage(entity.current[0], entity.current[1]), pos)
                 elif entity.type == "Item":
                     fg.blit(self.sprites.getImage(4, 0), pos)
+                if entity.hit:
+                    fg.blit(self.sprites.getImage(6, 1), pos)
 
         return fg
 
@@ -488,6 +505,9 @@ class Game:
                 if arr[x][y].revealed or self.DEBUGGING:
                     pos = [x*self.sprites.cellSize[0] + offset_x,(len(arr[x])-y)*self.sprites.cellSize[1] + offset_y]
                     bg.blit(self.sprites.getImage(1, arr[x][y].floortype), pos)
+                    for entity in arr[x][y].contents:
+                        if entity.type == "Decor":
+                            bg.blit(self.sprites.getImage(entity.category, entity.index), pos)
                     if arr[x][y].exit:
                         bg.blit(self.sprites.getImage(4, 3), pos)
                     elif arr[x][y].wall:
@@ -498,9 +518,6 @@ class Game:
                     bg.blit(shadow, pos)
                     if self.DEBUGGING and arr[x][y].visible != 0:
                         pygame.draw.rect(bg, (255,0,0), pos + self.sprites.cellSize, 1)
-                    for entity in arr[x][y].contents:
-                        if entity.type == "Decor":
-                            bg.blit(self.sprites.getImage(entity.category, entity.index), pos)
 
         return bg
 

@@ -8,6 +8,7 @@ class Entity:
         self.moving = False
         self.lastD = ""
         self.health = 0
+        self.hit = False
     
     def clone(self):
         return copy.deepcopy(self)
@@ -52,13 +53,21 @@ class Monster(Entity):
         self.blocking = True
         self.health = 1
         self.damage = 1
-        self.speed = 1
+        self.speed = 2
+        self.moves = 0
         self.vision = 4
         self.target = None
-        self.home = None
+        self.avoided_paths = []
         self.path = []
         self.chasing = False
         self.stunned = 0
+        self.home = None
+    
+    def avoided(self):
+        return self.avoided_paths
+
+    def avoid(self, path):
+        self.avoided_paths.append(path)
     
     def changeTarget(self, target):
         if not self.target == target:
@@ -128,4 +137,4 @@ TRAPS = {
 DEFAULT_MONSTER = Monster()
 DEFAULT_MONSTER.health = 5
 DEFAULT_MONSTER.damage = 3
-DEFAULT_MONSTER.speed = 1
+DEFAULT_MONSTER.speed = 2
