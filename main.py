@@ -18,10 +18,6 @@ screen = pygame.display.set_mode((WINDOW_SIZE[0], WINDOW_SIZE[1]))
 # Framerate
 clock = pygame.time.Clock()
 
-# Sound
-#mixer.music.load(resources.backgroundSound)
-#mixer.music.play(-1)
-
 # Caption and Icon
 pygame.display.set_caption("Endless Escape")
 sprites = resources.SpriteSheet()
@@ -59,7 +55,9 @@ while running:
             if event.key == pygame.K_SPACE:
                 triggers["space"] = event.type == pygame.KEYDOWN
             if event.key == pygame.K_ESCAPE:
-                triggers["exit"] = event.type == pygame.KEYDOWN
+                # You get nothing. Close the fucking screen
+                running = False
+                break
     session.triggerInput(triggers)
 
     if session.graphics_updates:

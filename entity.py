@@ -106,6 +106,15 @@ class Decor(Entity): #Blood
         self.index = index
         self.position = [el for el in pos]
 
+class Projectile(Entity):
+    def __init__(self, pos, dir):
+        super(Projectile, self).__init__()
+        self.position = [el for el in pos]
+        self.type = "Projectile"
+        self.dir = dir
+        self.blocking = False
+
+
 
 class Trap(Entity):
     def __init__(self, trap):

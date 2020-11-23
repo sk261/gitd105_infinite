@@ -181,6 +181,10 @@ class Map:
             self.cells[x][y].contents.remove(entity)
     
     def moveEntity(self, entity, d):
+        if not entity in self.contents:
+            entity.position[0] = self.DX[d] + entity.position[0]
+            entity.position[1] = self.DY[d] + entity.position[1]
+            return self.addEntity(entity)
         for target in self.contents:
             if entity == target:
                 cell = self.cells[target.position[0]][target.position[1]]

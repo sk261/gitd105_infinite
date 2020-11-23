@@ -30,6 +30,10 @@ class Game:
         self.waitForDialogue = False
         self.graphicsCD = 0
         self.currentTrap = None
+        self.arrow = None
+        self.hiding = False
+        self.bouncing = False
+        self.bouncingCD = 0
 
         self.currentCellContents = []
         self.DEBUGGING = False
@@ -68,8 +72,8 @@ class Game:
             self.direction = "W"
         if 'space' in keys:
             self.direction = False
-            self.DEBUGGING = not self.DEBUGGING
-            self.map.DEBUGGING = not self.map.DEBUGGING
+            #self.DEBUGGING = not self.DEBUGGING
+            #self.map.DEBUGGING = not self.map.DEBUGGING
             pass
        
         if len([el for el in ['1','2','3'] if el in keys]) > 0:
@@ -88,10 +92,18 @@ class Game:
                     item_list.append(content)
             # Item key selected
             # 1, 2, and 3 do different things depending on situation.
-            if len(trap_list) > 0:
-                # TODO: While on a trap, it progresses the trap
-                # TODO: While on a hole, it gives the hide/ignore options
-                pass
+            if len(trap_list) > 0 and trap_list[0].trap == "Hole":
+                if index == 0:
+                    self.direction = False
+                    self.hiding = True
+                    for entity in self.map.contents:
+                        if entity.type == "Monster":
+                            entity.changeTarget(entity.home)
+                    pass
+                elif index == 1:
+                    self.hiding = False
+                    self.waitForDialogue = False
+                    pass
             elif len(item_list) > 0: # PIck up item
                 self.map.removeEntity(item_list[0])
                 self.player.inventory[index] = item_list[0]
@@ -128,7 +140,8 @@ class Game:
                         # Place a wall on the player's space
                         pass
                     elif item.index == 8:
-                        # TODO: Item bow
+                        self.arrow = E.Projectile(self.player.position, self.player.lastD)
+                        self.waitForDialogue = True
                         # Attack down a hall (knocks out someone for 2 turns)
                         pass
                     elif item.index == 9:
@@ -137,22 +150,23 @@ class Game:
                             if entity.type == "Monster":
                                 entity.stunned += 1
                         # Knocks out everyone for 1 turn
-                        # TODO: Trigger 'strike' effects
                         pass
                     elif item.index == 10:
-                        # TODO: Item boot
+                        while self.map.moveEntity(self.player, self.player.lastD):
+                            self.map.revealCellsFromEntity(self.player)
                         # You 'run' to the end of the hall.
-                        pass
                     elif item.index == 11:
-                        # TODO: Item knife
-                        # Stuns everyone adjacent to you for 2 turns.
+                        for entity in self.map.contents:
+                            if entity.type == "Monster" and math.dist(entity.position, self.player.position) <= 2:
+                                for d in self.map.DX.keys():
+                                    pos = [self.map.DX[d] + self.player.position[0], self.map.DY[d] + self.player.position[1]]
+                                    if pos == entity.position:
+                                        entity.stunned = 3
+                                        break
+                        # Stuns everyone adjacent to you for 3 turns.
                         pass
                     self.graphics_updates = True
                     self.player.inventory[index] = None
-
-        if 'exit' in keys:
-            # TODO - end game
-            pass
         self.currentTriggers = []
             
 
@@ -171,13 +185,29 @@ class Game:
 
         playerTurn = False
         if self.waitForDialogue:
-            self.Cooldown = time() + 4*self.maxCooldown
+            self.Cooldown = time() + self.maxCooldown
+            self.graphics_updates = True
             if not self.currentTrap is None:
+                self.Cooldown = time() + 4*self.maxCooldown
                 sprung = self.currentTrap.Spring(self.player, self.map)
                 if not sprung:
                     self.map.removeEntity(self.currentTrap)
                     self.currentTrap = None
                     self.waitForDialogue = False
+            elif not self.arrow is None:
+                if not self.map.moveEntity(self.arrow, self.arrow.dir):
+                    _x = self.map.DX[self.arrow.dir] + self.arrow.position[0]
+                    _y = self.map.DY[self.arrow.dir] + self.arrow.position[1]
+                    blocker = self.map.cellHasType([_x, _y], "Monster")
+                    if not blocker is False:
+                        blocker.stunned += 2
+                        self.map.addEntity(E.Decor(4, blocker.position))
+                    self.map.removeEntity(self.arrow)
+                    self.arrow = None
+                    self.waitForDialogue = False
+
+
+
 
 
         self.handleControls()
@@ -212,7 +242,7 @@ class Game:
                 for entity in self.map.contents:
                     if not entity.moving:
                         continue
-                    if self.map.entitySeesEntity(entity, self.player, "", entity.vision):
+                    if not self.hiding and self.map.entitySeesEntity(entity, self.player, "", entity.vision):
                         entity.changeTarget([self.player.position[0], self.player.position[1]])
                         entity.chasing = True
 
@@ -238,10 +268,11 @@ class Game:
                 if entity.stunned > 0:
                     entity.moves = 0
                     entity.stunned -= 1
+                    entity.chasing = False
                     continue
                 if entity.moves <= 0:
                     continue
-                if self.map.entitySeesEntity(entity, self.player, "", entity.vision):
+                if not self.hiding and self.map.entitySeesEntity(entity, self.player, "", entity.vision):
                     entity.changeTarget([self.player.position[0], self.player.position[1]])
                     entity.chasing = True
                 elif not entity.chasing or entity.position == entity.target:
@@ -298,6 +329,11 @@ class Game:
                 self.player_moves = 0
             else:
                 self.graphics_updates = True
+
+        if self.bouncingCD < time(): # Sure.
+            self.bouncing = not self.bouncing
+            self.bouncingCD = time() + self.maxCooldown
+            self.graphics_updates = True
                             
                         
 
@@ -400,7 +436,6 @@ class Game:
                 dir_index = {"N":0.1, "E":0.2, "S":0.3, "W":0}
                 _DX = {"N": 0, "S": 0, "E": self.sprites.cellSize[0], "W": 0}
                 _DY = {"N": 0, "S": self.sprites.cellSize[1]/2, "E": self.sprites.cellSize[1]/2, "W":self.sprites.cellSize[1]/2}
-                # TODO: Draw an arrow in the direction the player is walking, as well as the attack symbol
                 if item.index == 0: #Book
                     gi.blit(self.sprites.getImage(6, 0), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
                 elif item.index == 1: #potion
@@ -424,10 +459,23 @@ class Game:
                         gi.blit(self.sprites.getImage(6, 1),
                         (TL[0] + 5*w/10 + _DX[self.player.lastD], cursor + _DY[self.player.lastD]))
                 elif item.index == 9: #Orb
+                    gi.blit(self.sprites.getImage(2, 0), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                    gi.blit(self.sprites.getImage(6, 4), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
                     pass
                 elif item.index == 10: #Boot
+                    if self.player.lastD in _DX.keys():
+                        _dir = dir_index[self.player.lastD]
+                        # arrow
+                        gi.blit(self.sprites.getImage(6, 10+_dir),
+                        (TL[0] + 5*w/10 + _DX[self.map.OPPOSITE[self.player.lastD]], cursor + _DY[self.map.OPPOSITE[self.player.lastD]]))
+                        # boot
+                        gi.blit(self.sprites.getImage(6, 10+_dir), # ??? Maybe I should put a boot here.
+                        (TL[0] + 5*w/10 + _DX[self.player.lastD], cursor + _DY[self.player.lastD]))
                     pass
                 elif item.index == 11: #knife
+                    # Surrounding? # EXTRA: make it apparent that it's surrounding the player
+                    gi.blit(self.sprites.getImage(2, 0), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
+                    gi.blit(self.sprites.getImage(6, 2), (TL[0] + 5*w/10, cursor + self.sprites.cellSize[1]/2))
                     pass
             cursor += 2*self.sprites.cellSize[1]
 
@@ -465,8 +513,28 @@ class Game:
                         gi.blit(self.sprites.getImage(6, 2), pos)
                     gi.blit(self.sprites.getImage(6, trap_list[0].current[1]), pos)
                 elif trap_list[0].trap == "Hole":
-                   # gi.blit
-                    n = 4
+                    # Goon w/Z  downArrow   overArrow   Goon w/!
+                    # <1   Hole        Hole        <2
+                    # Upper level
+                    gi.blit(self.sprites.getImage(6, 10.3), pos) # Arrow down
+                    gi.blit(self.sprites.getImage(4, 1), [pos[0], pos[1] + self.sprites.cellSize[1]]) # hole
+                    # 2
+                    pos[0] += self.sprites.cellSize[0]
+                    gi.blit(self.sprites.getImage(2, 0), pos) # Goon
+                    gi.blit(self.sprites.getImage(6, 4), pos) # Z
+                    # Selection arrow 1
+                    gi.blit(self.sprites.getImage(6, 7), [pos[0], pos[1] + self.sprites.cellSize[1]])
+                    # 3
+                    pos[0] += self.sprites.cellSize[0]
+                    gi.blit(self.sprites.getImage(6, 10.2), pos) # Arrow down
+                    gi.blit(self.sprites.getImage(4, 1), [pos[0], pos[1] + self.sprites.cellSize[1]]) # hole
+                    # 4
+                    pos[0] += self.sprites.cellSize[0]
+                    gi.blit(self.sprites.getImage(2, 0), pos) # Goon
+                    gi.blit(self.sprites.getImage(6, 0), [pos[0], pos[1] - self.sprites.cellSize[1]]) # !
+                    # Selection arrow 2
+                    gi.blit(self.sprites.getImage(6, 8), [pos[0], pos[1] + self.sprites.cellSize[1]])
+
                 elif trap_list[0].trap == "Portal":
                     gi.blit(self.sprites.getImage(6, trap_list[0].current[1]), pos)
                     gi.blit(self.sprites.getImage(3, 0), pos) # Player
@@ -505,13 +573,18 @@ class Game:
             x, y = entity.position
             if self.map.cells[x][y].visible != 0 or self.DEBUGGING:
                 pos = (x*self.sprites.cellSize[0] + offset_x,(len(self.map.cells[0])-y)*self.sprites.cellSize[1] + offset_y)
-                if entity.type == "Player":
-                    fg.blit(self.sprites.getImage(3, 0), pos)
+                if entity.type == "Projectile":
+                    fg.blit(self.sprites.getImage(6, 1), pos)
+                elif entity.type == "Player":
+                    if self.hiding:
+                        fg.blit(self.sprites.getImage(3, 2), pos)
+                    else:
+                        fg.blit(self.sprites.getImage(3, 0 + (1 if self.bouncing else 0)), pos)
                 elif entity.type == "Monster":
-                    fg.blit(self.sprites.getImage(2, 0), pos)
+                    fg.blit(self.sprites.getImage(2, 0 + (1 if self.bouncing and entity.chasing else 0)), pos)
                     if entity.chasing:
                         fg.blit(self.sprites.getImage(6, 0), [pos[0], pos[1]-self.sprites.cellSize[1]])
-                    elif len(entity.path) == 0:
+                    elif len(entity.path) == 0 or entity.stunned > 0:
                         fg.blit(self.sprites.getImage(6, 4), pos)
                 elif entity.type == "Trap":
                     if not entity.current is None:
