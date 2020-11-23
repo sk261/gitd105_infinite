@@ -115,24 +115,33 @@ class Trap(Entity):
         self.damage = TRAPS[trap][2]
         self.current = TRAPS[trap][0]
         self.post_image = TRAPS[trap][1]
-        self.requires_dialogue = TRAPS[trap][3]
+        self.requires_dialogue = True
         self.sprung = False
+        self._target = None
     
-    def Spring(self, entity):
-        entity.health -= damage
-        self.current = self.post_Image
-        if self.trap == "Spikes":
-            self.post_image = None
-            self.damage = 0
+    def Spring(self, entity, _map):
+        if self.trap == "Hole":
+            return True
+        if not self.sprung:
+            entity.dealDamage(self.damage)
+            self.current = self.post_image
+            self.sprung = self.post_image is None
+            if self.trap == "Spikes":
+                self.post_image = None
+                self.damage = 0
+            elif self.trap == "Portal":
+                _map.teleportEntity(entity, self._target)
+                _map.revealCellsFromEntity(entity)
+            return True
         return False
 
 
 
 # [First image id], [Second image id], [Damage dealt], [Dialogue]
 TRAPS = {
-    "Spikes":   [ [6, 5],   [6, 6], 1,  False],
-    "Hole":     [ [4, 1],   None,   0,  True],
-    "Portal":   [ [4, 2],   None,   0,  True]
+    "Spikes":   [ [6, 5],   [6, 6], 1],
+    "Hole":     [ [4, 1],   None,   0],
+    "Portal":   [ [4, 2],   None,   0]
 }
 DEFAULT_MONSTER = Monster()
 DEFAULT_MONSTER.health = 5

@@ -203,6 +203,11 @@ class Map:
                 newcell.contents.append(target)
                 target.position = [nx, ny]
                 return True
+            
+    def teleportEntity(self, entity, loc):
+        self.removeEntity(entity)
+        entity.position = loc
+        self.addEntity(entity)
 
 
     # Turns a wall chart into a cell map
@@ -602,6 +607,11 @@ class Map:
                             # Traps
                             trap = entity.Trap(random.choice(list(entity.TRAPS.keys())))
                             trap.position = [x, y]
+                            if trap.trap == "Portal":
+                                while trap._target is None:
+                                    _tempX, _tempY = [random.randrange(len(self.cells)), random.randrange(len(self.cells[0]))]
+                                    if not self.cells[_tempX][_tempY].wall:
+                                        trap._target = [_tempX, _tempY]
                             self.addEntity(trap)
 
 

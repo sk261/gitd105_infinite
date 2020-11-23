@@ -29,6 +29,7 @@ class Game:
         self.maxCooldown = 200
         self.waitForDialogue = False
         self.graphicsCD = 0
+        self.currentTrap = None
 
         self.currentCellContents = []
         self.DEBUGGING = False
@@ -169,6 +170,15 @@ class Game:
             return False
 
         playerTurn = False
+        if self.waitForDialogue:
+            self.Cooldown = time() + 4*self.maxCooldown
+            if not self.currentTrap is None:
+                sprung = self.currentTrap.Spring(self.player, self.map)
+                if not sprung:
+                    self.map.removeEntity(self.currentTrap)
+                    self.currentTrap = None
+                    self.waitForDialogue = False
+
 
         self.handleControls()
         if self.direction == False:
@@ -194,7 +204,9 @@ class Game:
                 for entity in self.currentCellContents:
                     if entity.type == "Trap":
                         self.waitForDialogue = entity.requires_dialogue
+                        self.currentTrap = entity
                         if self.waitForDialogue:
+                            self.Cooldown = time() + 4*self.maxCooldown
                             pass
                 # Player moved successfully, entity target check for player
                 for entity in self.map.contents:
@@ -294,7 +306,7 @@ class Game:
             self.graphics_updates = False
             self.bg_image = self.getBackgroundImage(self.player.position)
             self.fg_image = self.getForegroundImage(self.player.position)
-            self.gg_image = self.getGUIImage(None)
+            self.gg_image = self.getGUIImage()
 
         ret = pygame.Surface((self.size[0], self.size[1]))
         ret.blit(self.bg_image, (0, 0))
@@ -303,7 +315,7 @@ class Game:
         
         return ret
 
-    def getGUIImage(self, options):
+    def getGUIImage(self):
         gg = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
         gfinal = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
         gi = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
@@ -316,9 +328,10 @@ class Game:
         trap_list = []
         for content in self.currentCellContents:
             if content.type == "Trap":
+                if content.current is None:
+                    continue
                 revealed = True
-                trap_list.append(content.current)
-                print("Trapped!")
+                trap_list.append(content)
             elif content.type == "Item":
                 revealed = True
                 item_list.append(content.index) # Add item to the list
@@ -435,12 +448,32 @@ class Game:
                     pos = (x*self.sprites.cellSize[0] + offset_x,(y*self.sprites.cellSize[1] + offset_y))
                     gg.blit(panelBG, pos)
            
-            # Bottom panel FG
-            # TODO Add various messages and only draw this if one is available (passed through the 'options' param)
             cursor = 0
             if len(trap_list) > 0:
-                pass
-                # TODO: Trap first
+                n = 1
+                if trap_list[0].trap == "Spikes":
+                    n = 1
+                elif trap_list[0].trap == "Hole":
+                    n = 4
+                elif trap_list[0].trap == "Portal":
+                    n = 3
+                w = (w -  n*self.sprites.cellSize[0]) /2
+                pos = [w + cursor + offset_x + self.sprites.cellSize[0], (h + self.sprites.cellSize[1])/2 + offset_y] # First telement
+                if trap_list[0].trap == "Spikes":
+                    gi.blit(self.sprites.getImage(3, 0), pos) # Player
+                    if trap_list[0].current[1] == 6:
+                        gi.blit(self.sprites.getImage(6, 2), pos)
+                    gi.blit(self.sprites.getImage(6, trap_list[0].current[1]), pos)
+                elif trap_list[0].trap == "Hole":
+                   # gi.blit
+                    n = 4
+                elif trap_list[0].trap == "Portal":
+                    gi.blit(self.sprites.getImage(6, trap_list[0].current[1]), pos)
+                    gi.blit(self.sprites.getImage(3, 0), pos) # Player
+                    pos[0] += self.sprites.cellSize[0]
+                    gi.blit(self.sprites.getImage(6, 10.2), pos) # Arrow
+                    pos[0] += self.sprites.cellSize[0]
+                    gi.blit(self.sprites.getImage(4, 6), pos) # Question
             elif len(item_list) > 0: # Items
                 w = (w -  len(item_list)*self.sprites.cellSize[0]) /2
                 for i in range(len(item_list)):
