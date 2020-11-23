@@ -19,6 +19,8 @@ class Game:
 
         self.sprites = spritesheet
 
+        self.font = pygame.font.Font('freesansbold.ttf', 12)
+
         self.currentTriggers = []
         self.graphics_updates = True
         self.bg_image = None
@@ -355,6 +357,7 @@ class Game:
         gg = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
         gfinal = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
         gi = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
+        gi.blit(self.font.render("Levels Escaped: " + str(self.level), True, (255,255,255)), (5, 5))
         gg.set_alpha(200)
         panelBG = self.sprites.getImage(1, 1)
 

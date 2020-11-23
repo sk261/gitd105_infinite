@@ -18,6 +18,7 @@ screen = pygame.display.set_mode((WINDOW_SIZE[0], WINDOW_SIZE[1]))
 # Framerate
 clock = pygame.time.Clock()
 
+
 # Caption and Icon
 pygame.display.set_caption("Endless Escape")
 sprites = resources.SpriteSheet()
