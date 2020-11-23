@@ -358,6 +358,7 @@ class Game:
         gfinal = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
         gi = pygame.Surface((self.size[0], self.size[1]), pygame.SRCALPHA, 32)
         gi.blit(self.font.render("Levels Escaped: " + str(self.level), True, (255,255,255)), (5, 5))
+        gi.blit(self.font.render("Graphics by Oryx Design Lab", True, (255,255,255)), (5, 15))
         gg.set_alpha(200)
         panelBG = self.sprites.getImage(1, 1)
 
